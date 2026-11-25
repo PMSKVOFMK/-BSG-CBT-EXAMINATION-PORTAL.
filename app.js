@@ -10,7 +10,7 @@ function showLogin(role){currentRole=role;$("welcome").classList.add("hidden");$
 function goHome(){$("auth").classList.add("hidden");$("dashboard").classList.add("hidden");$("welcome").classList.remove("hidden")}
 $("login-form").addEventListener("submit",async e=>{e.preventDefault();if(!ready){$("auth-error").textContent="Database configuration is missing. Reload after setup.";return}const {error}=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});if(error){$("auth-error").textContent=error.message;return}await loadDashboard()});
 $("logout").addEventListener("click",async()=>{if(db)await db.auth.signOut();currentProfile=null;activeExam=null;clearInterval(examTimer);goHome()});
-async function loadDashboard(){const {data:{user}}=await db.auth.getUser();if(!user)return goHome();const {data:profile,error}=await db.from("profiles").select("*").eq("id",user.id).single();if(error||!profile){$("auth-error").textContent="Your portal profile is missing. Contact the administrator.";await db.auth.signOut();return}if(currentRole&&profile.role!==currentRole){$("auth-error").textContent="This account does not have the selected role.";await db.auth.signOut();return}currentProfile=profile;currentRole=profile.role;$("auth").classList.add("hidden");$("welcome").classList.add("hidden");$("dashboard").classList.remove("hidden");$("dash-title").textContent=profile.role==="admin"?"Administrator Dashboard":profile.role==="examiner"?"Examiner Dashboard":"Student Dashboard";$("user-email").textContent=profile.full_name+" · "+user.email+(profile.role==="examiner"&&profile.examiner_code?" · Examiner ID: "+profile.examiner_code:"");await renderDashboard()}
+async function loadDashboard(){const {data:{user}}=await db.auth.getUser();if(!user)return goHome();const {data:profile,error}=await db.from("profiles").select("*").eq("id",user.id).single();if(error||!profile){$("auth-error").textContent="Your portal profile is missing. Contact the administrator.";await db.auth.signOut();return}if(currentRole&&profile.role!==currentRole){$("auth-error").textContent="This account does not have the selected role.";await db.auth.signOut();return}currentProfile=profile;currentRole=profile.role;$("auth").classList.add("hidden");$("welcome").classList.add("hidden");$("dashboard").classList.remove("hidden");$("dash-title").textContent=profile.role==="admin"?"Administrator Dashboard":profile.role==="examiner"?"Examiner Dashboard":"Student Dashboard";$("user-email").textContent=profile.full_name+(profile.role==="student"&&profile.candidate_id?" · Candidate ID: "+profile.candidate_id:" · "+user.email)+(profile.role==="examiner"&&profile.examiner_code?" · Examiner ID: "+profile.examiner_code:"");await renderDashboard()}
 async function renderDashboard(){const root=$("dash-content");root.innerHTML='<p class="muted">Loading workspace…</p>';if(currentRole==="admin")return adminDashboard(root);if(currentRole==="examiner")return examinerDashboard(root);return studentDashboard(root)}
 async function adminDashboard(root){
  const [{data:exams},{count:examiners},{count:students},{count:submissions}]=await Promise.all([
@@ -38,14 +38,36 @@ async function examinerDashboard(root){
  const ids=[...new Set((subs||[]).map(s=>s.student_id))];
  const {data:profiles}=ids.length?await db.from("profiles").select("id,full_name,email").in("id",ids):{data:[]};
  const pmap=Object.fromEntries((profiles||[]).map(p=>[p.id,p]));
- root.innerHTML=`<div class="data-card"><h3>Create student accounts</h3><p class="muted tiny">One student per line: Full Name,email,password,student. Examiners can create student accounts for their own examinations.</p><form id="student-users-form"><textarea id="student-users" rows="3" placeholder="Student Name,student@example.com,TempPass123,student"></textarea><button class="primary">Create student account(s)</button></form></div>
+ root.innerHTML=`<div class="data-card"><div class="card-kicker">CANDIDATE REGISTRATION · 01</div><h3>Register a Scout / Guide candidate</h3><p class="muted tiny">The examiner enters the student's details. The seven-digit Candidate ID becomes the login ID, and the BSG UID number is automatically set as the password. No student email address is required.</p><form id="student-users-form" class="form-grid">
+ <label>Student full name<input name="full_name" required autocomplete="name" placeholder="Enter student's full name"></label>
+ <label>Father's name<input name="father_name" required placeholder="Enter father's name"></label>
+ <label>Scout / Guide Number<input name="scout_guide_number" required placeholder="Enter Scout / Guide number"></label>
+ <label>BSG UID Number<input name="bsg_uid" required inputmode="numeric" pattern="[0-9]{6,20}" minlength="6" maxlength="20" placeholder="Enter BSG UID number"></label>
+ <label>Seven-digit Candidate ID<input name="candidate_id" required inputmode="numeric" pattern="[0-9]{7}" minlength="7" maxlength="7" placeholder="Enter assigned seven-digit ID"></label>
+ <div class="wide"><button class="primary">Create student login account</button></div>
+ </form><div id="student-created" class="created-credentials hidden" role="status"></div></div>
  <div class="data-card"><h3>Create examination & question paper</h3><form id="create-exam" class="form-grid"><label>Examination title<input name="title" required placeholder="Pravesh & Pratham Sopan"></label><label>Level<select name="level"><option>Combined Pravesh + Pratham Sopan</option><option>Pravesh</option><option>Pratham Sopan</option><option>Dwitiya Sopan</option></select></label><label>Total marks<input name="total_marks" type="number" min="1" value="100" required></label><label>Duration (minutes)<input name="duration_minutes" type="number" min="1" value="180" required></label><label>Start date/time<input name="starts_at" type="datetime-local"></label><label>End date/time<input name="ends_at" type="datetime-local"></label><label class="wide">Instructions<textarea name="instructions" rows="2"></textarea></label><div class="wide"><button class="primary">Save examination as draft</button></div></form></div>
  <div class="section-title"><h2>My examinations & question papers</h2></div>
  ${(exams||[]).map(x=>`<div class="exam-card"><div class="exam-top"><div><h3>${esc(x.title)}</h3><p>${esc(x.level)} · ${x.total_marks} marks · ${x.duration_minutes} minutes</p></div><span class="status">${esc(x.status)}</span></div><div class="action-row"><button class="secondary" onclick="addQuestion('${x.id}')">Add question & answer key</button><button class="secondary" onclick="assignExam('${x.id}')">Assign student</button><button onclick="setExamStatus('${x.id}','published')">Open exam</button><button class="secondary" onclick="setExamStatus('${x.id}','closed')">Close exam</button></div></div>`).join("")||'<p class="muted">Create your first examination above.</p>'}
  <div class="section-title"><h2>Submitted answer sheets & marking</h2></div>
  ${(subs||[]).map(s=>`<div class="data-card"><h3>${esc(s.exams?.title)} — ${esc(pmap[s.student_id]?.full_name||pmap[s.student_id]?.email||"Student")}</h3><p class="muted tiny">Submitted: ${new Date(s.submitted_at).toLocaleString()} · ${esc(s.status)}</p>${(s.answers||[]).map(a=>`<div class="question"><b>${esc(a.questions?.question_text)}</b><p>${esc(a.answer_text||"No answer")}</p><p class="muted tiny">Automatic MCQ marks: ${a.auto_marks||0}</p><label>Examiner marks (max ${a.questions?.marks})<input type="number" min="0" max="${a.questions?.marks}" step="0.5" id="mark-${a.id}" value="${a.marks_awarded??a.auto_marks??0}"></label><button class="secondary" onclick="saveMark('${a.id}')">Save marks</button></div>`).join("")}<button onclick="publishResult('${s.id}')">Finalise & publish result</button></div>`).join("")||'<p class="muted">No submitted scripts yet.</p>'}
  <div class="notice">Create the question paper and answer key before opening the exam. The system checks that question marks add up to the exam total and that every MCQ has a correct answer.</div>`;
- $("student-users-form").addEventListener("submit",async e=>{e.preventDefault();const lines=$("student-users").value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);const users=[];for(const line of lines){const p=line.split(",").map(x=>x.trim());if(p.length!==4||p[3].toLowerCase()!=="student"){toast("Each row must be: Full Name,email,password,student");return}users.push({full_name:p[0],email:p[1],password:p[2],role:"student"})}if(!users.length)return toast("Enter at least one student.");const {data,error}=await db.functions.invoke("admin-create-users",{body:{users}});if(error)return toast(error.message);const failed=(data?.results||[]).filter(x=>!x.success);toast((data?.created||0)+" student account(s) created; "+failed.length+" failed.");if(failed.length)alert(failed.map(x=>x.email+": "+x.error).join("\n"));$("student-users").value="";renderDashboard()});
+ $("student-users-form").addEventListener("submit",async e=>{
+ e.preventDefault();
+ const form=e.currentTarget,fd=new FormData(form);
+ const student={full_name:String(fd.get("full_name")||"").trim(),father_name:String(fd.get("father_name")||"").trim(),scout_guide_number:String(fd.get("scout_guide_number")||"").trim(),bsg_uid:String(fd.get("bsg_uid")||"").trim(),candidate_id:String(fd.get("candidate_id")||"").trim(),role:"student"};
+ if(!/^\d{7}$/.test(student.candidate_id))return toast("Candidate ID must contain exactly seven digits.");
+ if(!/^\d{6,20}$/.test(student.bsg_uid))return toast("Enter a valid numeric BSG UID number (6–20 digits).");
+ const button=form.querySelector("button[type=submit],button:not([type])");button.disabled=true;button.textContent="Creating secure login…";
+ const {data,error}=await db.functions.invoke("admin-create-users",{body:{student}});
+ button.disabled=false;button.textContent="Create student login account";
+ if(error)return toast(error.message);
+ const result=data?.results?.[0];
+ if(!result?.success)return toast(result?.error||data?.error||"Student account could not be created.");
+ const panel=$("student-created");panel.classList.remove("hidden");
+ panel.innerHTML='<div class="created-head">✓ Candidate account created successfully</div><div class="credential-row"><span>Student</span><b>'+esc(student.full_name)+'</b></div><div class="credential-row"><span>Candidate Login ID</span><b>'+esc(student.candidate_id)+'</b></div><div class="credential-row"><span>Initial Password</span><b>'+esc(student.bsg_uid)+'</b></div><div class="credential-row"><span>Scout / Guide Number</span><b>'+esc(student.scout_guide_number)+'</b></div><p class="tiny muted">Give the Candidate ID and BSG UID to the student securely. The password itself is not stored in the profile table.</p>';
+ form.reset();toast("Student login created.");
+});
  $("create-exam").addEventListener("submit",createExam);
 }
 async function saveMark(id){const marks=Number($("mark-"+id).value);if(!Number.isFinite(marks)||marks<0)return toast("Invalid mark.");const {error}=await db.from("answers").update({marks_awarded:marks}).eq("id",id);toast(error?error.message:"Marks saved")}
@@ -107,14 +129,15 @@ async function addQuestion(examId){
   await renderDashboard();
 }
 async function assignExam(examId){
-  const email=(prompt("Enter the student's registered email address:")||"").trim().toLowerCase();
-  if(!email)return;
-  const {data:student,error:pe}=await db.from("profiles").select("id,full_name,email,role").eq("email",email).maybeSingle();
-  if(pe||!student)return toast(pe?.message||"No student account found with that email.");
+  const candidateId=(prompt("Enter the student's seven-digit Candidate ID:")||"").trim();
+  if(!candidateId)return;
+  if(!/^\d{7}$/.test(candidateId))return toast("Enter the seven-digit Candidate ID.");
+  const {data:student,error:pe}=await db.from("profiles").select("id,full_name,candidate_id,role").eq("candidate_id",candidateId).maybeSingle();
+  if(pe||!student)return toast(pe?.message||"No student account found with that Candidate ID.");
   if(student.role!=="student")return toast("That account is not a student account.");
   const {error}=await db.from("exam_assignments").insert({exam_id:examId,student_id:student.id});
   if(error)return toast(error.code==="23505"?"This student is already assigned.":error.message);
-  toast("Examination assigned to "+student.full_name+".");
+  toast("Examination assigned to "+student.full_name+" ("+student.candidate_id+").");
   await renderDashboard();
 }
 async function setExamStatus(examId,nextStatus){
@@ -154,18 +177,18 @@ function showLogin(role){
  currentRole=role;$("welcome").classList.add("hidden");$("dashboard").classList.add("hidden");$("auth").classList.remove("hidden");
  $("auth-title").textContent=role==="admin"?"Super Admin Login":role==="examiner"?"Examiner Login":"Student Login";
  $("auth-sub").textContent=role==="admin"?"Authorised portal administration access.":role==="examiner"?"Enter the unique Examiner ID issued by the Super Admin.":"Sign in to access your assigned examination workspace.";
- $("identity-caption").textContent=role==="examiner"?"Examiner ID":"Registered email address";
- $("email").type=role==="examiner"?"text":"email";$("email").placeholder=role==="examiner"?"BSG-EXM-XXXXXXXX":"name@example.com";
- $("auth-help").textContent=role==="examiner"?"Use the unique Examiner ID and temporary password issued by the Super Admin.":"Use the account credentials issued by your portal administrator.";
+ $("identity-caption").textContent=role==="examiner"?"Examiner ID":role==="student"?"Seven-digit Candidate ID":"Registered email address";
+ $("email").type=role==="admin"?"email":"text";$("email").placeholder=role==="examiner"?"BSG-EXM-XXXXXXXX":role==="student"?"e.g. 1234567":"name@example.com";
+ $("auth-help").textContent=role==="examiner"?"Use the Examiner ID and password issued by the Super Admin.":role==="student"?"Enter your seven-digit Candidate ID. Your BSG UID number is your password.":"Use the existing Super Admin account credentials.";
  $("auth-error").textContent="";
 }
 $("login-form").addEventListener("submit",async e=>{
  e.preventDefault();e.stopImmediatePropagation();
  if(!ready){$("auth-error").textContent="Database configuration is missing. Reload after setup.";return}
  const identity=$("email").value.trim(),password=$("password").value;
- if(currentRole==="examiner"){
+ if(currentRole==="examiner"||currentRole==="student"){
   const {data,error}=await db.functions.invoke("portal-login",{body:{login_id:identity,password}});
-  if(error||!data?.session){$("auth-error").textContent=data?.error||error?.message||"Invalid Examiner ID or password.";return}
+  if(error||!data?.session){$("auth-error").textContent=data?.error||error?.message||"Invalid Candidate ID / Examiner ID or password.";return}
   const {error:setError}=await db.auth.setSession({access_token:data.session.access_token,refresh_token:data.session.refresh_token});
   if(setError){$("auth-error").textContent=setError.message;return}
  }else{

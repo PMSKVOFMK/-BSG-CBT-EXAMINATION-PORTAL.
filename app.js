@@ -119,6 +119,17 @@ async function examinerDashboard(root){
 }
 async function saveMark(id){const marks=Number($("mark-"+id).value);if(!Number.isFinite(marks)||marks<0)return toast("Invalid mark.");const {error}=await db.from("answers").update({marks_awarded:marks}).eq("id",id);toast(error?error.message:"Marks saved")}
 async function publishResult(id){const {data:ans,error}=await db.from("answers").select("marks_awarded,auto_marks").eq("submission_id",id);if(error)return toast(error.message);const total=(ans||[]).reduce((n,a)=>n+Number(a.marks_awarded??a.auto_marks??0),0);const {error:e}=await db.from("submissions").update({status:"published",marks_awarded:total,published_at:new Date().toISOString()}).eq("id",id);toast(e?e.message:"Result published: "+total+" marks")}
+async function publishResults(examId){
+ if(currentRole!=="admin")return toast("Only the Super Admin can publish results.");
+ const {count,error}=await db.from("submissions").select("*",{count:"exact",head:true}).eq("exam_id",examId);
+ if(error)return toast(error.message);
+ if(!count)return toast("No candidate submissions are available for this examination.");
+ if(!confirm("Publish automatically evaluated results for "+count+" candidate(s)? Students will then see their marks and result category."))return;
+ const {error:up}=await db.from("submissions").update({status:"published",published_at:new Date().toISOString()}).eq("exam_id",examId);
+ if(up)return toast(up.message);
+ toast("Results published for "+count+" candidate(s).");
+ await renderDashboard();
+}
 async function exportResults(examId,format){const {data:subs,error}=await db.from("submissions").select("*,answers(*,questions(question_text,marks,position))").eq("exam_id",examId).order("submitted_at");if(error)return toast(error.message);const ids=[...new Set((subs||[]).map(s=>s.student_id))];const {data:profiles}=ids.length?await db.from("profiles").select("id,full_name,email").in("id",ids):{data:[]};const map=Object.fromEntries((profiles||[]).map(p=>[p.id,p]));const rows=(subs||[]).map(s=>{const p=map[s.student_id]||{};const row={"Student Name":p.full_name||"","Email":p.email||"","Exam ID":examId,"Submitted At":s.submitted_at,"Status":s.status};for(const a of (s.answers||[]).sort((a,b)=>(a.questions?.position||0)-(b.questions?.position||0))){row["Q: "+(a.questions?.question_text||a.question_id)]=a.marks_awarded??a.auto_marks??0}row["Total Marks"]=s.marks_awarded??"";return row});if(format==="pdf"){const w=window.open("","_blank");if(!w)return toast("Allow pop-ups to print results.");const cols=Object.keys(rows[0]||{"No submissions":""});w.document.write("<html><head><title>CBT Results</title><style>body{font:12px Arial;padding:20px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:6px;text-align:left}</style></head><body><h2>BSG CBT Examination Results</h2><table><thead><tr>"+cols.map(c=>"<th>"+esc(c)+"</th>").join("")+"</tr></thead><tbody>"+rows.map(r=>"<tr>"+cols.map(c=>"<td>"+esc(r[c])+"</td>").join("")+"</tr>").join("")+"</tbody></table><script>window.print()<\/script></body></html>");w.document.close();return}if(format==="xlsx"&&window.XLSX){const ws=XLSX.utils.json_to_sheet(rows);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Results");XLSX.writeFile(wb,"BSG-CBT-Results.xlsx");return}const cols=Object.keys(rows[0]||{"No submissions":""});const csv=[cols,...rows.map(r=>cols.map(c=>r[c]))].map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="BSG-CBT-Results.csv";a.click();URL.revokeObjectURL(a.href)}
 (async()=>{if(!ready)return;const {data:{session}}=await db.auth.getSession();if(session)await loadDashboard()})();
 
@@ -290,6 +301,16 @@ async function adminDashboard(root){
  <section class="data-card"><div class="section-title"><h2>Examiner register</h2><span class="portal-mark">${examinerRows?.length||0} ACCOUNTS</span></div><div class="action-row"><button class="secondary" onclick="exportAccountIds('examiner')">Download Examiner Register</button></div>${listError?'<p class="error">'+esc(listError.message)+'</p>':(examinerRows||[]).length?'<div class="table-wrap"><table><thead><tr><th>Examiner ID</th><th>Section</th><th>Name</th><th>Email</th></tr></thead><tbody>'+(examinerRows||[]).map(p=>'<tr><td><b>'+esc(p.examiner_code||'')+'</b></td><td>'+esc((p.section||'').toUpperCase())+'</td><td>'+esc(p.full_name||'')+'</td><td>'+esc(p.email||'')+'</td></tr>').join('')+'</tbody></table></div>':'<p class="muted">No examiners created yet.</p>'}</section>
  <section class="data-card" id="admin-results"><h2>Results & reporting</h2><p class="muted tiny">Download result sheets for examinations that have candidate submissions.</p>${(exams||[]).map(x=>'<div class="action-row"><b>'+esc(x.title)+'</b><button class="secondary" onclick="exportResults(\''+x.id+'\',\'xlsx\')">Excel</button><button class="secondary" onclick="exportResults(\''+x.id+'\',\'pdf\')">Print / PDF</button></div>').join('')||'<p class="muted">No examinations available.</p>'}</section>
  <div class="notice">Super Admin controls examiner accounts, question papers, answer keys, publication and results oversight. The existing Super Admin account and credentials are unchanged.</div>`;
+ const resultsSection=$("admin-results");
+ if(resultsSection){
+  const resultRows=resultsSection.querySelectorAll(".action-row");
+  resultRows.forEach((row,index)=>{
+   const exam=exams&&exams[index];if(!exam)return;
+   const button=document.createElement("button");button.type="button";button.className="secondary";button.textContent="Publish Results";
+   button.addEventListener("click",()=>publishResults(exam.id));
+   row.insertBefore(button,row.children[1]||null);
+  });
+ }
  const examinerForm=$("examiner-create-form");if(examinerForm)examinerForm.addEventListener("submit",createUsers);
  const examForm=$("admin-exam-form");if(examForm)examForm.addEventListener("submit",createExam);
 }

@@ -527,10 +527,13 @@ function buildAdminWorkspace(root){
  const credential=document.createElement("section");credential.className="data-card";credential.innerHTML='<h3>Credential registers</h3><p class="muted tiny">Download seven-digit candidate IDs and Examiner IDs. Passwords are excluded from general registers.</p><div class="action-row"><button class="secondary" type="button" id="export-examiner-ids">Export Examiner IDs (Excel)</button><button class="secondary" type="button" id="export-candidate-ids">Export Candidate IDs (Excel)</button></div>';
  const accountRegister=$("admin-account-register");
  addPage("credentials","ID & Credential Centre",[credential,accountRegister]);
- $("export-examiner-ids").addEventListener("click",()=>exportAccountIds("examiner"));$("export-candidate-ids").addEventListener("click",()=>exportAccountIds("candidate"));
  const monitor=document.createElement("section");monitor.className="data-card";monitor.innerHTML='<h3>Remote examination incident log</h3><p class="muted tiny">Alerts require examiner review. Browser events cannot prove cheating or detect use of a second device.</p><div id="admin-proctoring-content" class="muted">Loading monitoring events…</div>';
  addPage("monitoring","Remote Monitoring",[monitor]);
- shell.appendChild(sidebar);shell.appendChild(pages);root.replaceChildren(shell);openAdminModule("overview");applyPortalLanguage();loadAdminProctorEvents();
+ shell.appendChild(sidebar);shell.appendChild(pages);root.replaceChildren(shell);
+ const exportExaminerButton=$("export-examiner-ids"),exportCandidateButton=$("export-candidate-ids");
+ if(exportExaminerButton)exportExaminerButton.addEventListener("click",()=>exportAccountIds("examiner"));
+ if(exportCandidateButton)exportCandidateButton.addEventListener("click",()=>exportAccountIds("candidate"));
+ openAdminModule("overview");applyPortalLanguage();loadAdminProctorEvents();
 }
 async function loadAdminProctorEvents(){
  const host=$("admin-proctoring-content");if(!host)return;

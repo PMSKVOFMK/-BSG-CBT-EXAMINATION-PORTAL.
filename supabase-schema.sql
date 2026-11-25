@@ -71,7 +71,7 @@ create policy "admins manage profiles" on public.profiles for all using(public.c
 create policy "exams staff manage" on public.exams for all using(public.current_role() in ('admin','examiner')) with check(public.current_role() in ('admin','examiner'));
 create policy "students view assigned published exams" on public.exams for select using(status='published' and exists(select 1 from public.exam_assignments a where a.exam_id=id and a.student_id=auth.uid()));
 create policy "questions staff manage" on public.questions for all using(public.current_role() in ('admin','examiner')) with check(public.current_role() in ('admin','examiner'));
-create policy "students read assigned questions" on public.questions for select using(exists(select 1 from public.exam_assignments a join public.exams e on e.id=a.exam_id where a.exam_id=exam_id and a.student_id=auth.uid() and e.status='published'));
+create policy "students read assigned questions" on public.questions for select using(exists(select 1 from public.exam_assignments a join public.exams e on e.id=a.exam_id where a.exam_id=questions.exam_id and a.student_id=auth.uid() and e.status='published'));
 create policy "admins manage assignments" on public.exam_assignments for all using(public.current_role()='admin') with check(public.current_role()='admin');
 create policy "students read own assignments" on public.exam_assignments for select using(student_id=auth.uid());
 create policy "student or staff read submissions" on public.submissions for select using(student_id=auth.uid() or public.current_role() in ('admin','examiner'));

@@ -143,3 +143,68 @@ async function setExamStatus(examId,nextStatus){
   if(path.endsWith("/student.html")){document.body.dataset.portalRole="student";const grid=document.querySelector(".role-grid");if(grid)grid.innerHTML='<article class="role"><div class="role-icon">🎓</div><h3>Student Examination Portal</h3><p>Sign in to view your assigned examinations, instructions, question paper and published results.</p><button class="primary" onclick="showLogin(\'student\')">Student Login</button></article>';const btn=document.querySelector(".hero .primary");if(btn)btn.onclick=()=>showLogin("student");setTimeout(()=>showLogin("student"),0)}
   if(path.endsWith("/staff.html")){document.body.dataset.portalRole="staff";const grid=document.querySelector(".role-grid");if(grid)grid.innerHTML='<article class="role"><div class="role-icon">🧑‍🏫</div><h3>Examiner</h3><p>Create examinations, prepare question papers, assign candidates and evaluate written responses.</p><button class="primary" onclick="showLogin(\'examiner\')">Examiner Login</button></article><article class="role"><div class="role-icon">🛡️</div><h3>Super Admin</h3><p>Create examiner accounts, monitor examinations and export final marks.</p><button class="secondary" onclick="showLogin(\'admin\')">Administrator Login</button></article>';const btn=document.querySelector(".hero .primary");if(btn)btn.onclick=()=>showLogin("examiner")}
 })();
+
+
+/* Candidate CBT workspace: instruction gate, question palette and review navigation. */
+function paintQuestion(){
+  if(!activeExam)return;
+  const {questions,responses,review,currentIndex}=activeExam;
+  const q=questions[currentIndex],answer=responses[q.id]||"";
+  const palette=questions.map((item,i)=>{
+    const answered=!!String(responses[item.id]||"").trim(),marked=review.has(item.id);
+    const cls=marked?(answered?"answered-review":"review"):answered?"answered":"not-answered";
+    return '<button type="button" class="palette-item '+cls+(i===currentIndex?' current':'')+'" data-q-index="'+i+'" aria-label="Question '+(i+1)+'">'+(i+1)+'</button>';
+  }).join("");
+  const options=q.question_type==="mcq"?(q.options||[]).map((o,i)=>'<label class="cbt-option"><input type="radio" name="cbt-answer" value="'+esc(o)+'" '+(answer===o?'checked':'')+'><span>'+esc(o)+'</span></label>').join(""):'<textarea id="cbt-text-answer" class="answer-input" rows="5" placeholder="Type your answer here…">'+esc(answer)+'</textarea>';
+  $("dash-content").innerHTML='<div class="cbt-head"><div><span class="eyebrow">EXAMINATION IN PROGRESS</span><h2>'+esc(activeExam.exam.title)+'</h2><p>'+esc(currentProfile.full_name)+' · '+esc(activeExam.exam.level)+'</p></div><div class="cbt-clock"><span>TIME LEFT</span><strong id="timer">--:--</strong></div></div><div class="cbt-layout"><section class="cbt-main"><div class="cbt-question-head"><b>Question '+(currentIndex+1)+' of '+questions.length+'</b><span>'+esc(q.marks)+' mark(s)</span></div><div class="cbt-question"><h3>'+esc(q.question_text)+'</h3><div id="cbt-answer-area">'+options+'</div></div><div class="cbt-controls"><button class="secondary" id="clear-answer" type="button">Clear Response</button><button class="secondary" id="mark-review" type="button">Mark for Review & Next</button><button class="primary" id="save-next" type="button">Save & Next</button></div><div class="cbt-bottom"><button class="secondary" id="previous-q" type="button" '+(currentIndex===0?'disabled':'')+'>Previous</button><button class="primary" id="submit-final" type="button">Submit Examination</button></div></section><aside class="cbt-side"><h3>Question Palette</h3><p class="muted tiny">Select a number to move to that question.</p><div class="palette">'+palette+'</div><div class="palette-legend"><span><i class="answered"></i> Answered</span><span><i class="not-answered"></i> Not answered</span><span><i class="review"></i> Marked for review</span><span><i class="answered-review"></i> Answered & review</span></div><div class="cbt-summary"><b>'+questions.filter(x=>String(responses[x.id]||"").trim()).length+'</b> answered · <b>'+questions.length-questions.filter(x=>String(responses[x.id]||"").trim()).length+'</b> remaining</div></aside></div>';
+  document.querySelectorAll("[data-q-index]").forEach(el=>el.addEventListener("click",()=>{captureAnswer();activeExam.currentIndex=Number(el.dataset.qIndex);paintQuestion()}));
+  $("clear-answer").addEventListener("click",()=>{delete activeExam.responses[q.id];activeExam.review.delete(q.id);paintQuestion()});
+  $("mark-review").addEventListener("click",()=>{captureAnswer();activeExam.review.add(q.id);if(currentIndex<questions.length-1)activeExam.currentIndex++;paintQuestion()});
+  $("save-next").addEventListener("click",()=>{captureAnswer();activeExam.review.delete(q.id);if(currentIndex<questions.length-1)activeExam.currentIndex++;paintQuestion()});
+  $("previous-q").addEventListener("click",()=>{captureAnswer();activeExam.currentIndex=Math.max(0,currentIndex-1);paintQuestion()});
+  $("submit-final").addEventListener("click",()=>submitExam(false));
+  const area=$("cbt-answer-area");
+  area.querySelectorAll('input[name="cbt-answer"]').forEach(el=>el.addEventListener("change",captureAnswer));
+  const ta=$("cbt-text-answer");if(ta)ta.addEventListener("input",captureAnswer);
+}
+function captureAnswer(){
+  if(!activeExam)return;
+  const q=activeExam.questions[activeExam.currentIndex];
+  const selected=document.querySelector('input[name="cbt-answer"]:checked');
+  const typed=$("cbt-text-answer");
+  if(selected)activeExam.responses[q.id]=selected.value;
+  else if(typed)activeExam.responses[q.id]=typed.value;
+}
+async function startExam(id){
+  const {data:exam,error:ee}=await db.from("exams").select("*").eq("id",id).single();
+  if(ee||!exam)return toast(ee?.message||"Examination not found.");
+  const instructions=exam.instructions||"Read every question carefully. Select one option for MCQs. You can move between questions using the palette. Save your responses before submitting. The server timer starts when you begin. No negative marking.";
+  if(!confirm("EXAMINATION INSTRUCTIONS\n\n"+instructions+"\n\nDuration: "+exam.duration_minutes+" minutes\nMaximum marks: "+exam.total_marks+"\n\nPress OK only when you are ready to start."))return;
+  const {data:started,error:se}=await db.rpc("start_exam",{p_exam_id:id});
+  if(se)return toast(se.message);
+  const {data:questions,error:qe}=await db.from("questions").select("*").eq("exam_id",id).order("position");
+  if(qe||!questions?.length)return toast(qe?.message||"Questions are not available.");
+  activeExam={exam,questions,startedAt:new Date(started).getTime(),responses:{},review:new Set(),currentIndex:0};
+  paintQuestion();
+  const tick=()=>{
+    if(!activeExam)return;
+    const left=Math.max(0,Math.ceil((activeExam.startedAt+activeExam.exam.duration_minutes*60000-Date.now())/1000));
+    const clock=$("timer");if(clock)clock.textContent=Math.floor(left/60)+":"+String(left%60).padStart(2,"0");
+    if(left<=0){clearInterval(examTimer);submitExam(true)}
+  };
+  tick();examTimer=setInterval(tick,1000);
+}
+async function submitExam(auto){
+  if(!activeExam)return;
+  captureAnswer();
+  const questions=activeExam.questions,examId=activeExam.exam.id;
+  const answered=questions.filter(q=>String(activeExam.responses[q.id]||"").trim()).length;
+  if(!auto&&!confirm("Submit this examination?\n\nAnswered: "+answered+"\nUnanswered: "+(questions.length-answered)+"\n\nYou cannot submit again after this."))return;
+  clearInterval(examTimer);
+  const answers=questions.map(q=>({question_id:q.id,answer_text:String(activeExam.responses[q.id]||"")}));
+  const {error}=await db.rpc("submit_exam",{p_exam_id:examId,p_answers:answers});
+  if(error){toast(error.message);return}
+  activeExam=null;
+  toast(auto?"Time expired. Your answers were submitted.":"Examination submitted successfully.");
+  await studentDashboard($("dash-content"));
+}

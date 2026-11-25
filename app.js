@@ -13,40 +13,74 @@ $("logout").addEventListener("click",async()=>{if(db)await db.auth.signOut();cur
 async function loadDashboard(){const {data:{user}}=await db.auth.getUser();if(!user)return goHome();const {data:profile,error}=await db.from("profiles").select("*").eq("id",user.id).single();if(error||!profile){$("auth-error").textContent="Your portal profile is missing. Contact the administrator.";await db.auth.signOut();return}if(currentRole&&profile.role!==currentRole){$("auth-error").textContent="This account does not have the selected role.";await db.auth.signOut();return}currentProfile=profile;currentRole=profile.role;$("staff-hub").classList.add("hidden");$("auth").classList.add("hidden");$("welcome").classList.add("hidden");$("dashboard").classList.remove("hidden");$("dash-title").textContent=profile.role==="admin"?"Administrator Dashboard":profile.role==="examiner"?"Examiner Dashboard":"Student Dashboard";const institution=$("dashboard-institution");if(institution)institution.textContent="PM SHRI Kendriya Vidyalaya, Ordnance Factory, Medak, Eddumailaram · School Code: 1525";$("user-email").textContent=profile.full_name+(profile.section?" · "+profile.section.toUpperCase()+" SECTION":"")+(profile.role==="student"&&profile.candidate_id?" · Candidate ID: "+profile.candidate_id:" · "+user.email)+(profile.role==="examiner"&&profile.examiner_code?" · Examiner ID: "+profile.examiner_code:"");await renderDashboard()}
 async function renderDashboard(){const root=$("dash-content");root.innerHTML='<p class="muted">Loading workspace…</p>';if(currentRole==="admin")return adminDashboard(root);if(currentRole==="examiner")return examinerDashboard(root);return studentDashboard(root)}
 async function adminDashboard(root){
- const [{data:exams},{count:examiners},{count:students},{count:submissions}]=await Promise.all([
+ const [{data:exams,error:examError},{count:examiners},{count:students},{count:submissions},{data:examinerProfiles,error:profileError}]=await Promise.all([
   db.from("exams").select("*").order("created_at",{ascending:false}),
   db.from("profiles").select("*",{count:"exact",head:true}).eq("role","examiner"),
   db.from("profiles").select("*",{count:"exact",head:true}).eq("role","student"),
-  db.from("submissions").select("*",{count:"exact",head:true})
+  db.from("submissions").select("*",{count:"exact",head:true}),
+  db.from("profiles").select("id,full_name,email,section,examiner_code,created_at").eq("role","examiner").order("created_at",{ascending:false})
  ]);
- root.innerHTML=`<div class="stats"><div class="tile"><strong>${exams?.length||0}</strong><span>Examinations</span></div><div class="tile"><strong>${examiners||0}</strong><span>Examiners</span></div><div class="tile"><strong>${students||0}</strong><span>Students</span></div><div class="tile"><strong>${submissions||0}</strong><span>Submissions</span></div></div>
- <div class="data-card"><h3>Create examiner accounts</h3><p class="muted tiny">One examiner per line: Full Name,email,password,examiner. Only Super Admin can create examiner accounts.</p><form id="users-form"><textarea id="bulk-users" rows="4" placeholder="Examiner Name,examiner@example.com,TempPass123,examiner"></textarea><button class="primary">Create examiner account(s)</button></form><div id="examiner-created" class="created-credentials hidden" role="status"></div></div>
- <div class="section-title"><h2>Examination monitoring & marks export</h2></div>
- ${(exams||[]).map(x=>`<div class="exam-card"><div class="exam-top"><div><h3>${esc(x.title)}</h3><p>${esc(x.level)} · ${x.total_marks} marks · ${x.duration_minutes} minutes</p></div><span class="status">${esc(x.status)}</span></div><p class="muted tiny">Created by Super Admin · NHQ 50-MCQ format</p><div class="action-row"><button class="secondary" onclick="exportResults('${x.id}','csv')">Export CSV</button><button class="secondary" onclick="exportResults('${x.id}','xlsx')">Export Excel</button><button class="secondary" onclick="exportResults('${x.id}','pdf')">Print / PDF</button></div></div>`).join("")||'<p class="muted">No examinations have been created by examiners yet.</p>'}
- <div class="data-card"><div class="card-kicker">EXAMINATION CONTROL · SUPER ADMIN</div><h3>Create examination</h3><p class="muted tiny">NHQ format: 50 MCQs × 2 marks = 100 marks · 50 minutes. Super Admin creates and manages all question papers.</p>
+ if(examError||profileError){root.textContent=(examError||profileError).message;return}
+ root.innerHTML=`<div class="stats"><div class="tile"><strong>${exams?.length||0}</strong><span>Examinations</span></div><div class="tile"><strong>${examiners||0}</strong><span>Examiner Profiles</span></div><div class="tile"><strong>${students||0}</strong><span>Registered Candidates</span></div><div class="tile"><strong>${submissions||0}</strong><span>Submitted Answer Sheets</span></div></div>
+ <section class="data-card admin-examiner-profiles"><div class="card-kicker">STAFF MANAGEMENT · SUPER ADMIN</div><h3>Examiner Profiles</h3><p class="muted tiny">Create a separate login for each Scout or Guide examiner. The portal generates the Examiner Login ID automatically.</p>
+ <form id="users-form" class="form-grid">
+ <label>Examiner full name<input name="full_name" required placeholder="Enter examiner's full name"></label>
+ <label>Official email address<input name="email" type="email" required placeholder="examiner@example.com"></label>
+ <label>Temporary password<input name="password" type="password" minlength="8" required placeholder="At least 8 characters"></label>
+ <label>Assigned section<select name="section" required><option value="">Choose section</option><option value="scout">Scout</option><option value="guide">Guide</option></select></label>
+ <div class="wide"><button class="primary" type="submit">Create Examiner Profile &amp; Login</button></div>
+ </form><div id="examiner-created" class="created-credentials hidden" role="status"></div>
+ <div class="section-title"><h2>Existing Examiner Profiles</h2></div>
+ <div class="table-wrap"><table class="examiner-table"><thead><tr><th>Examiner</th><th>Examiner Login ID</th><th>Email</th><th>Section</th></tr></thead><tbody>${(examinerProfiles||[]).map(p=>'<tr><td>'+esc(p.full_name)+'</td><td><span class="examiner-code">'+esc(p.examiner_code||"—")+'</span></td><td>'+esc(p.email)+'</td><td>'+esc((p.section||"").toUpperCase())+'</td></tr>').join("")||'<tr><td colspan="4">No examiner profiles created yet.</td></tr>'}</tbody></table></div>
+ </section>
+ <section class="data-card admin-exam-control"><div class="card-kicker">EXAMINATION CONTROL · SUPER ADMIN</div><h3>Create examination</h3><p class="muted tiny">Standard format: 50 MCQs × 2 marks = 100 marks · 50 minutes.</p>
  <form id="create-exam" class="form-grid">
  <label>Examination / progression<select name="level" required><option value="">Select examination</option><option>Pravesh</option><option>Pratham Sopan</option><option>Pravesh + Pratham Sopan</option><option>Dwitiya Sopan</option></select></label>
- <label>Start date & time<input name="starts_at" type="datetime-local"></label><label>End date & time<input name="ends_at" type="datetime-local"></label>
+ <label>Start date &amp; time<input name="starts_at" type="datetime-local"></label><label>End date &amp; time<input name="ends_at" type="datetime-local"></label>
  <label class="wide">Candidate instructions<textarea name="instructions" rows="2" placeholder="Read all questions carefully. Each question carries 2 marks."></textarea></label>
- <div class="wide"><button class="primary">Create 100-mark examination</button></div></form></div>
- <div class="section-title"><h2>Examination papers & question management</h2></div>
- ${(exams||[]).map(x=>`<div class="exam-card"><div class="exam-top"><div><h3>${esc(x.title)}</h3><p>${esc(x.level)} · ${x.total_marks} marks · ${x.duration_minutes} minutes</p></div><span class="status">${esc(x.status)}</span></div><div class="action-row"><button class="secondary" onclick="addQuestion('${x.id}')">Add MCQ & answer key</button><button class="secondary" onclick="setExamStatus('${x.id}','published')">Open exam</button><button class="secondary" onclick="setExamStatus('${x.id}','closed')">Close exam</button><button class="secondary" onclick="exportResults('${x.id}','csv')">Export CSV</button><button class="secondary" onclick="exportResults('${x.id}','xlsx')">Export Excel</button><button class="secondary" onclick="exportResults('${x.id}','pdf')">Print / PDF</button></div></div>`).join("")||'<p class="muted">No examinations created yet.</p>'}
- <div class="notice">Super Admin creates examiner accounts, candidate examination papers, answer keys and schedules. Examiners register candidates and assign the approved paper.</div>`;
+ <div class="wide"><button class="primary" type="submit">Create 100-mark examination</button></div></form></section>
+ <section class="data-card admin-exam-list"><div class="section-title"><h2>Examination papers &amp; results</h2></div>
+ ${(exams||[]).map(x=>'<div class="exam-card"><div class="exam-top"><div><h3>'+esc(x.title)+'</h3><p>'+esc(x.level)+' · '+x.total_marks+' marks · '+x.duration_minutes+' minutes</p></div><span class="status">'+esc(x.status)+'</span></div><div class="action-row"><button class="secondary" onclick="addQuestion(\''+x.id+'\')">Add MCQ &amp; answer key</button><button class="secondary" onclick="setExamStatus(\''+x.id+'\',\'published\')">Open exam</button><button class="secondary" onclick="setExamStatus(\''+x.id+'\',\'closed\')">Close exam</button><button class="secondary" onclick="exportResults(\''+x.id+'\',\'csv\')">Export CSV</button><button class="secondary" onclick="exportResults(\''+x.id+'\',\'xlsx\')">Export Excel</button><button class="secondary" onclick="exportResults(\''+x.id+'\',\'pdf\')">Print / PDF</button></div></div>').join("")||'<p class="muted">No examinations created yet.</p>'}
+ </section><div class="notice">Super Admin manages examiner profiles and examination papers. Examiners use the same portal workspace to register candidates, create candidate IDs and manage assigned examinations.</div>`;
  $("users-form").addEventListener("submit",createUsers);
  $("create-exam").addEventListener("submit",createExam);
+ buildAdminWorkspace(root);
 }
 async function createUsers(e){
  e.preventDefault();
- const lines=$("bulk-users").value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),users=[];
- for(const line of lines){const p=line.split(",").map(x=>x.trim());if(p.length!==4||p[3].toLowerCase()!=="examiner"){toast("Each row: Full Name,email,password,examiner");return}users.push({full_name:p[0],email:p[1],password:p[2],role:"examiner"})}
- if(!users.length)return toast("Enter at least one examiner account.");
- const {data,error}=await db.functions.invoke("admin-create-users",{body:{users}});
+ if(currentRole!=="admin")return toast("Only Super Admin can create examiner profiles.");
+ const form=e.currentTarget,fd=new FormData(form);
+ const user={full_name:String(fd.get("full_name")||"").trim(),email:String(fd.get("email")||"").trim().toLowerCase(),password:String(fd.get("password")||""),section:String(fd.get("section")||"").trim().toLowerCase(),role:"examiner"};
+ if(!user.full_name||!user.email||user.password.length<8||!["scout","guide"].includes(user.section))return toast("Complete all examiner details. Password must be at least 8 characters.");
+ const button=form.querySelector("button[type=submit]");button.disabled=true;button.textContent="Creating examiner login…";
+ const {data,error}=await db.functions.invoke("admin-create-users",{body:{users:[user]}});
+ button.disabled=false;button.textContent="Create Examiner Profile & Login";
  if(error)return toast(error.message);
- const panel=$("examiner-created"),ok=(data?.results||[]).filter(x=>x.success),failed=(data?.results||[]).filter(x=>!x.success);
- panel.classList.remove("hidden");
- panel.innerHTML=ok.map(r=>{const original=users.find(u=>u.email.toLowerCase()===String(r.email||"").toLowerCase())||{};return '<div class="created-head">✓ Examiner account created</div><div class="credential-row"><span>Examiner</span><b>'+esc(original.full_name||"")+'</b></div><div class="credential-row"><span>Examiner Login ID</span><b>'+esc(r.examiner_id||"")+'</b></div><div class="credential-row"><span>Temporary Password</span><b>'+esc(original.password||"")+'</b></div><div class="credential-row"><span>Email</span><b>'+esc(original.email||"")+'</b></div><hr>'}).join("")+(failed.length?'<p class="error">'+failed.map(x=>esc(x.email)+': '+esc(x.error)).join('<br>')+'</p>':"");
- toast(ok.length+" examiner account(s) created; "+failed.length+" failed.");
- $("bulk-users").value="";
+ const result=data?.results?.[0];
+ if(!result?.success)return toast(result?.error||data?.error||"Examiner account could not be created.");
+ const panel=$("examiner-created");panel.classList.remove("hidden");
+ panel.innerHTML='<div class="created-head">✓ Examiner profile and login created</div><div class="credential-row"><span>Examiner</span><b>'+esc(user.full_name)+'</b></div><div class="credential-row"><span>Examiner Login ID</span><b>'+esc(result.examiner_id||"")+'</b></div><div class="credential-row"><span>Temporary Password</span><b>'+esc(user.password)+'</b></div><div class="credential-row"><span>Email</span><b>'+esc(user.email)+'</b></div><div class="credential-row"><span>Assigned Section</span><b>'+esc(user.section.toUpperCase())+'</b></div><p class="tiny muted">Share these login details securely with the examiner. The password is not displayed again after leaving this screen.</p>';
+ form.reset();toast("Examiner profile created successfully. Login ID: "+(result.examiner_id||""));
+}
+function buildAdminWorkspace(root){
+ const stats=root.querySelector(".stats");
+ const profile=root.querySelector(".admin-examiner-profiles");
+ const examControl=root.querySelector(".admin-exam-control");
+ const examList=root.querySelector(".admin-exam-list");
+ const notice=root.querySelector(".notice");
+ const shell=document.createElement("div");shell.className="samagam-layout";
+ const sidebar=document.createElement("aside");sidebar.className="samagam-sidebar";
+ sidebar.innerHTML='<div class="samagam-side-brand"><span>⚜</span><div><b>STAFF WORKSPACE</b><small>Super Admin Control Desk</small></div></div><div class="samagam-nav-label">MAIN MENU</div>';
+ const nav=document.createElement("nav");nav.className="samagam-nav";const pages=document.createElement("div");pages.className="samagam-pages";
+ const add=(id,title,nodes)=>{const p=document.createElement("section");p.className="samagam-page";p.dataset.page=id;const h=document.createElement("div");h.className="samagam-page-heading";h.innerHTML='<span class="eyebrow">BHARAT SCOUTS &amp; GUIDES · CBT</span><h2>'+title+'</h2>';p.appendChild(h);nodes.filter(Boolean).forEach(n=>p.appendChild(n));pages.appendChild(p)};
+ const items=[["overview","▦","Dashboard"],["examiners","♙","Examiner Profiles"],["exams","◷","Examination Management"],["reports","▤","Results & Exports"]];
+ items.forEach(([id,ic,title])=>{const b=document.createElement("button");b.type="button";b.dataset.page=id;b.innerHTML='<span class="nav-icon">'+ic+'</span><span>'+title+'</span><span class="nav-chevron">›</span>';b.addEventListener("click",()=>{pages.querySelectorAll(".samagam-page").forEach(p=>p.classList.toggle("active",p.dataset.page===id));nav.querySelectorAll("button").forEach(x=>x.classList.toggle("active",x===b));applyPortalLanguage()});nav.appendChild(b)});
+ sidebar.appendChild(nav);const foot=document.createElement("div");foot.className="samagam-side-foot";foot.textContent="Super Admin · Full administration access";sidebar.appendChild(foot);
+ add("overview","Dashboard Overview",[stats,notice]);
+ add("examiners","Examiner Profiles",[profile]);
+ add("exams","Examination Management",[examControl,examList]);
+ add("reports","Results & Exports",[examList.cloneNode(true)]);
+ shell.appendChild(sidebar);shell.appendChild(pages);root.replaceChildren(shell);const first=nav.querySelector("button");if(first)first.click();
 }
 function resultCategory(marks){const n=Number(marks)||0;return n>=90?'First Class':n>=70?'Second Class':n>=50?'Third Class':'Fail'}
 async function studentDashboard(root){
@@ -141,41 +175,20 @@ function buildExaminerWorkspace(root){
  if(node){examNodes.push(node);node=node.nextElementSibling;while(node&&node!==submissionTitle){const next=node.nextElementSibling;examNodes.push(node);node=next;}}
  const submissionNodes=[];if(submissionTitle){submissionNodes.push(submissionTitle);node=submissionTitle.nextElementSibling;while(node&&node!==monitoring&&!node.classList.contains("notice")){const next=node.nextElementSibling;submissionNodes.push(node);node=next;}}
  const notice=[...root.querySelectorAll(".notice")].at(-1);
+ const stats=document.createElement("div");stats.className="stats";stats.innerHTML='<div class="tile"><strong>'+((reg?1:0))+'</strong><span>Registration Workspace</span></div><div class="tile"><strong>'+examNodes.filter(n=>n.classList.contains("exam-card")).length+'</strong><span>Available Examinations</span></div><div class="tile"><strong>'+submissionNodes.filter(n=>n.classList.contains("data-card")).length+'</strong><span>Submitted Scripts</span></div><div class="tile"><strong>Active</strong><span>Examiner Access</span></div>';
  const shell=document.createElement("div");shell.className="samagam-layout";
  const sidebar=document.createElement("aside");sidebar.className="samagam-sidebar";
- sidebar.innerHTML='<div class="samagam-side-brand"><span>⚜</span><div><b>EXAMINER DESK</b><small>Scout / Guide Operations</small></div></div><div class="samagam-nav-label">MY WORKSPACE</div>';
- const nav=document.createElement("nav");nav.className="samagam-nav";
- const pages=document.createElement("div");pages.className="samagam-pages";
- const items=[["registration","♙","Candidate Registration"],["exams","◷","Examination Assignment"],["scripts","▤","Submitted Answer Sheets"],["monitoring","◉","Remote Monitoring"]];
- const add=(id,title,nodes)=>{const p=document.createElement("section");p.className="samagam-page";p.dataset.page=id;const h=document.createElement("div");h.className="samagam-page-heading";h.innerHTML='<span class="eyebrow">EXAMINATION OPERATIONS</span><h2>'+title+'</h2>';p.appendChild(h);nodes.filter(Boolean).forEach(n=>p.appendChild(n));pages.appendChild(p)};
+ sidebar.innerHTML='<div class="samagam-side-brand"><span>⚜</span><div><b>STAFF WORKSPACE</b><small>Scout / Guide Operations</small></div></div><div class="samagam-nav-label">MAIN MENU</div>';
+ const nav=document.createElement("nav");nav.className="samagam-nav";const pages=document.createElement("div");pages.className="samagam-pages";
+ const items=[["overview","▦","Dashboard"],["registration","♙","Candidate Registration"],["exams","◷","Examination Assignment"],["scripts","▤","Submitted Answer Sheets"],["monitoring","◉","Remote Monitoring"]];
+ const add=(id,title,nodes)=>{const p=document.createElement("section");p.className="samagam-page";p.dataset.page=id;const h=document.createElement("div");h.className="samagam-page-heading";h.innerHTML='<span class="eyebrow">BHARAT SCOUTS &amp; GUIDES · CBT</span><h2>'+title+'</h2>';p.appendChild(h);nodes.filter(Boolean).forEach(n=>p.appendChild(n));pages.appendChild(p)};
  items.forEach(([id,ic,title])=>{const b=document.createElement("button");b.type="button";b.dataset.page=id;b.innerHTML='<span class="nav-icon">'+ic+'</span><span>'+title+'</span><span class="nav-chevron">›</span>';b.addEventListener("click",()=>{pages.querySelectorAll(".samagam-page").forEach(p=>p.classList.toggle("active",p.dataset.page===id));nav.querySelectorAll("button").forEach(x=>x.classList.toggle("active",x===b));applyPortalLanguage()});nav.appendChild(b)});
  sidebar.appendChild(nav);const foot=document.createElement("div");foot.className="samagam-side-foot";foot.textContent="Section-restricted examiner access";sidebar.appendChild(foot);
+ add("overview","Dashboard Overview",[stats,notice]);
  add("registration","Candidate Registration",[reg,bulk]);
  add("exams","Examination Assignment",examNodes);
  add("scripts","Submitted Answer Sheets",submissionNodes);
- add("monitoring","Remote Monitoring",[monitoring,notice]);
- shell.appendChild(sidebar);shell.appendChild(pages);root.replaceChildren(shell);
- const first=nav.querySelector("button");if(first)first.click();
-}
-
-
-function buildStudentWorkspace(root){
- const heading=root.querySelector(".section-title");
- const cards=[...root.querySelectorAll(".exam-card")];
- const empty=[...root.querySelectorAll(".data-card")].find(x=>x.textContent.includes("No examinations assigned yet"));
- const shell=document.createElement("div");shell.className="samagam-layout";
- const sidebar=document.createElement("aside");sidebar.className="samagam-sidebar";
- sidebar.innerHTML='<div class="samagam-side-brand"><span>⚜</span><div><b>STUDENT DESK</b><small>CBT Examination Portal</small></div></div><div class="samagam-nav-label">MY ACCOUNT</div>';
- const nav=document.createElement("nav");nav.className="samagam-nav";const pages=document.createElement("div");pages.className="samagam-pages";
- const items=[["myexams","▤","My Examinations"],["profile","♙","My Profile"],["help","ⓘ","Instructions"]];
- const add=(id,title,nodes)=>{const p=document.createElement("section");p.className="samagam-page";p.dataset.page=id;const h=document.createElement("div");h.className="samagam-page-heading";h.innerHTML='<span class="eyebrow">STUDENT EXAMINATION DESK</span><h2>'+title+'</h2>';p.appendChild(h);nodes.filter(Boolean).forEach(n=>p.appendChild(n));pages.appendChild(p)};
- items.forEach(([id,ic,title])=>{const b=document.createElement("button");b.type="button";b.dataset.page=id;b.innerHTML='<span class="nav-icon">'+ic+'</span><span>'+title+'</span><span class="nav-chevron">›</span>';b.addEventListener("click",()=>{pages.querySelectorAll(".samagam-page").forEach(p=>p.classList.toggle("active",p.dataset.page===id));nav.querySelectorAll("button").forEach(x=>x.classList.toggle("active",x===b));applyPortalLanguage()});nav.appendChild(b)});
- sidebar.appendChild(nav);const foot=document.createElement("div");foot.className="samagam-side-foot";foot.textContent="Keep your Candidate ID secure";sidebar.appendChild(foot);
- add("myexams","My Examinations",[heading,...cards,empty]);
- const profile=document.createElement("section");profile.className="data-card";profile.innerHTML='<h3>Candidate Profile</h3><div class="credential-row"><span>Candidate Name</span><b>'+esc(currentProfile.full_name||"")+'</b></div><div class="credential-row"><span>Candidate ID</span><b>'+esc(currentProfile.candidate_id||"")+'</b></div><div class="credential-row"><span>Section</span><b>'+esc((currentProfile.section||"").toUpperCase())+'</b></div><div class="credential-row"><span>Scout / Guide Number</span><b>'+esc(currentProfile.scout_guide_number||"")+'</b></div><div class="credential-row"><span>Progression Level</span><b>'+esc(currentProfile.candidate_level||"")+'</b></div><p class="muted tiny">Your BSG UID is your initial password. Do not share it with anyone.</p>';
- add("profile","My Profile",[profile]);
- const help=document.createElement("section");help.className="data-card";help.innerHTML='<h3>Before you begin</h3><ol><li>Use a stable internet connection and keep your device charged.</li><li>Keep your admit card and Candidate ID ready.</li><li>Read the examination instructions carefully.</li><li>Remain on the examination page. Browser activity alerts may be recorded.</li><li>All examination questions and answers are in English.</li></ol>';
- add("help","Instructions",[help]);
+ add("monitoring","Remote Monitoring",[monitoring]);
  shell.appendChild(sidebar);shell.appendChild(pages);root.replaceChildren(shell);const first=nav.querySelector("button");if(first)first.click();
 }
 

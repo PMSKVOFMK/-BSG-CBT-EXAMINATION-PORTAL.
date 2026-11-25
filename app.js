@@ -218,7 +218,7 @@ async function loadExternalScript(src,globalName){
 async function extractPdfText(file){
  const status=$("import-status");status.textContent="Reading PDF pages…";const pdfjs=await loadExternalScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js","pdfjsLib");
  pdfjs.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";const pdf=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise;let all=[],ocr=null;
- for(let pageNo=1;pageNo<=pdf.numPages;pageNo++){status.textContent="Extracting PDF page "+pageNo+" of "+pdf.numPages+"…";const page=await pdf.getPage(pageNo),content=await page.getTextContent();let text=content.items.map(x=>x.str).join(" ");
+ for(let pageNo=1;pageNo<=pdf.numPages;pageNo++){status.textContent="Extracting PDF page "+pageNo+" of "+pdf.numPages+"…";const page=await pdf.getPage(pageNo),content=await page.getTextContent();let lines=[],line="",lastY=null;for(const item of content.items){const y=Math.round(item.transform?.[5]||0);if(lastY!==null&&Math.abs(y-lastY)>3){lines.push(line);line=""}line+=(item.str||"")+" ";lastY=y}if(line)lines.push(line);let text=lines.join("\n");
  if(text.trim().length<30){if(!ocr)ocr=await loadExternalScript("https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js","Tesseract");const viewport=page.getViewport({scale:1.7}),canvas=document.createElement("canvas"),ctx=canvas.getContext("2d");canvas.width=viewport.width;canvas.height=viewport.height;await page.render({canvasContext:ctx,viewport}).promise;text=(await ocr.recognize(canvas,"eng")).data.text||""}all.push(text)}
  return all.join("\n");
 }

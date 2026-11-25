@@ -62,6 +62,7 @@ async function studentDashboard(root){
   else{result='<p class="muted">This examination is not open yet.</p>'}
   return '<div class="exam-card"><div class="exam-top"><div><h3>'+esc(x.title)+'</h3><p>'+esc(x.level)+' · '+x.total_marks+' marks · '+x.duration_minutes+' minutes</p></div><span class="status">'+esc(s?s.status:x.status)+'</span></div>'+result+'<div class="action-row"><button class="secondary" onclick="printAdmitCard(\''+x.id+'\')">Print / Download Admit Card</button></div></div>'
  }).join('')||'<div class="data-card">No examinations assigned yet.</div>';
+ buildStudentWorkspace(root);
 }
 async function printAdmitCard(examId){
  const w=window.open("","_blank");if(!w)return toast("Allow pop-ups to print the admit card.");
@@ -155,6 +156,27 @@ function buildExaminerWorkspace(root){
  add("monitoring","Remote Monitoring",[monitoring,notice]);
  shell.appendChild(sidebar);shell.appendChild(pages);root.replaceChildren(shell);
  const first=nav.querySelector("button");if(first)first.click();
+}
+
+
+function buildStudentWorkspace(root){
+ const heading=root.querySelector(".section-title");
+ const cards=[...root.querySelectorAll(".exam-card")];
+ const empty=[...root.querySelectorAll(".data-card")].find(x=>x.textContent.includes("No examinations assigned yet"));
+ const shell=document.createElement("div");shell.className="samagam-layout";
+ const sidebar=document.createElement("aside");sidebar.className="samagam-sidebar";
+ sidebar.innerHTML='<div class="samagam-side-brand"><span>⚜</span><div><b>STUDENT DESK</b><small>CBT Examination Portal</small></div></div><div class="samagam-nav-label">MY ACCOUNT</div>';
+ const nav=document.createElement("nav");nav.className="samagam-nav";const pages=document.createElement("div");pages.className="samagam-pages";
+ const items=[["myexams","▤","My Examinations"],["profile","♙","My Profile"],["help","ⓘ","Instructions"]];
+ const add=(id,title,nodes)=>{const p=document.createElement("section");p.className="samagam-page";p.dataset.page=id;const h=document.createElement("div");h.className="samagam-page-heading";h.innerHTML='<span class="eyebrow">STUDENT EXAMINATION DESK</span><h2>'+title+'</h2>';p.appendChild(h);nodes.filter(Boolean).forEach(n=>p.appendChild(n));pages.appendChild(p)};
+ items.forEach(([id,ic,title])=>{const b=document.createElement("button");b.type="button";b.dataset.page=id;b.innerHTML='<span class="nav-icon">'+ic+'</span><span>'+title+'</span><span class="nav-chevron">›</span>';b.addEventListener("click",()=>{pages.querySelectorAll(".samagam-page").forEach(p=>p.classList.toggle("active",p.dataset.page===id));nav.querySelectorAll("button").forEach(x=>x.classList.toggle("active",x===b));applyPortalLanguage()});nav.appendChild(b)});
+ sidebar.appendChild(nav);const foot=document.createElement("div");foot.className="samagam-side-foot";foot.textContent="Keep your Candidate ID secure";sidebar.appendChild(foot);
+ add("myexams","My Examinations",[heading,...cards,empty]);
+ const profile=document.createElement("section");profile.className="data-card";profile.innerHTML='<h3>Candidate Profile</h3><div class="credential-row"><span>Candidate Name</span><b>'+esc(currentProfile.full_name||"")+'</b></div><div class="credential-row"><span>Candidate ID</span><b>'+esc(currentProfile.candidate_id||"")+'</b></div><div class="credential-row"><span>Section</span><b>'+esc((currentProfile.section||"").toUpperCase())+'</b></div><div class="credential-row"><span>Scout / Guide Number</span><b>'+esc(currentProfile.scout_guide_number||"")+'</b></div><div class="credential-row"><span>Progression Level</span><b>'+esc(currentProfile.candidate_level||"")+'</b></div><p class="muted tiny">Your BSG UID is your initial password. Do not share it with anyone.</p>';
+ add("profile","My Profile",[profile]);
+ const help=document.createElement("section");help.className="data-card";help.innerHTML='<h3>Before you begin</h3><ol><li>Use a stable internet connection and keep your device charged.</li><li>Keep your admit card and Candidate ID ready.</li><li>Read the examination instructions carefully.</li><li>Remain on the examination page. Browser activity alerts may be recorded.</li><li>All examination questions and answers are in English.</li></ol>';
+ add("help","Instructions",[help]);
+ shell.appendChild(sidebar);shell.appendChild(pages);root.replaceChildren(shell);const first=nav.querySelector("button");if(first)first.click();
 }
 
 async function saveMark(id){const marks=Number($("mark-"+id).value);if(!Number.isFinite(marks)||marks<0)return toast("Invalid mark.");const {error}=await db.from("answers").update({marks_awarded:marks}).eq("id",id);toast(error?error.message:"Marks saved")}
@@ -438,10 +460,10 @@ async function adminDashboard(root){
 
 
 let portalLanguage="en";
-const portalLabels={overview:"अवलोकन",examiners:"परीक्षक प्रबंधन",candidates:"अभ्यर्थी पंजीकरण",papers:"प्रश्नपत्र कार्यक्षेत्र",schedule:"परीक्षा समय-सारणी",results:"परिणाम और रिपोर्ट",credentials:"आईडी और लॉगिन विवरण",monitoring:"दूरस्थ निगरानी",registration:"उम्मीदवार पंजीकरण",exams:"परीक्षा आवंटन",scripts:"जमा उत्तर पुस्तिकाएँ"};
+const portalLabels={overview:"अवलोकन",examiners:"परीक्षक प्रबंधन",candidates:"अभ्यर्थी पंजीकरण",papers:"प्रश्नपत्र कार्यक्षेत्र",schedule:"परीक्षा समय-सारणी",results:"परिणाम और रिपोर्ट",credentials:"आईडी और लॉगिन विवरण",monitoring:"दूरस्थ निगरानी",registration:"उम्मीदवार पंजीकरण",exams:"परीक्षा आवंटन",scripts:"जमा उत्तर पुस्तिकाएँ",myexams:"मेरी परीक्षाएँ",profile:"मेरी प्रोफ़ाइल",help:"निर्देश"};
 function applyPortalLanguage(){
  const hi=portalLanguage==="hi";
- const en={overview:"Overview",examiners:"Examiner Management",candidates:"Candidate Register",papers:"Question Paper Studio",schedule:"Exam Scheduling",results:"Results & Reports",credentials:"ID & Credential Centre",monitoring:"Remote Monitoring",registration:"Candidate Registration",exams:"Examination Assignment",scripts:"Submitted Answer Sheets"};
+ const en={overview:"Overview",examiners:"Examiner Management",candidates:"Candidate Register",papers:"Question Paper Studio",schedule:"Exam Scheduling",results:"Results & Reports",credentials:"ID & Credential Centre",monitoring:"Remote Monitoring",registration:"Candidate Registration",exams:"Examination Assignment",scripts:"Submitted Answer Sheets",myexams:"My Examinations",profile:"My Profile",help:"Instructions"};
  document.querySelectorAll(".samagam-nav button").forEach(b=>{const span=b.querySelector("span:nth-child(2)");if(span)span.textContent=hi?portalLabels[b.dataset.page]||span.textContent:en[b.dataset.page]||span.textContent;});
  document.querySelectorAll(".samagam-page").forEach(p=>{const h=p.querySelector(".samagam-page-heading h2");if(h)h.textContent=hi?portalLabels[p.dataset.page]||h.textContent:en[p.dataset.page]||h.textContent;});
 }

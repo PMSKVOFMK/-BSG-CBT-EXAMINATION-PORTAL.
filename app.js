@@ -115,7 +115,7 @@ async function examinerDashboard(root){
  form.reset();const idMode=form.querySelector('input[name="candidate_id_mode"]:checked');if(idMode)idMode.dispatchEvent(new Event("change",{bubbles:true}));toast("Student login created.");
 });
  form.querySelectorAll('input[name="candidate_id_mode"]').forEach(r=>r.addEventListener("change",()=>{const generated=r.value==="generated"&&r.checked;const input=$("candidate-id-input");$("candidate-id-entry").classList.toggle("hidden",generated);input.required=!generated;input.disabled=generated;if(generated)input.value="";}));
- const bulk=document.createElement("div");bulk.className="data-card";bulk.innerHTML='<h3>Bulk register candidates from Excel</h3><p class="muted tiny">Upload .xlsx/.xls with columns: full_name, father_name, scout_guide_number, candidate_level, bsg_uid, candidate_id, section. Keep the already-issued seven-digit Candidate IDs.</p><input id="candidate-xlsx" type="file" accept=".xlsx,.xls"><button type="button" class="secondary" id="import-candidates">Import Excel sheet</button><div id="bulk-created" class="created-credentials hidden"></div>';
+ const bulk=document.createElement("div");bulk.className="data-card";bulk.innerHTML='<h3>Bulk register candidates from Excel</h3><p class="muted tiny">Upload .xlsx/.xls with columns: full_name, father_name, scout_guide_number, candidate_level, bsg_uid, candidate_id, candidate_id_mode, section. Use candidate_id_mode=existing or generated.</p><input id="candidate-xlsx" type="file" accept=".xlsx,.xls"><button type="button" class="secondary" id="import-candidates">Import Excel sheet</button><div id="bulk-created" class="created-credentials hidden"></div>';
  const registration=$("student-users-form");registration.parentElement.insertBefore(bulk,registration.nextSibling);
  $("import-candidates").addEventListener("click",async()=>{
   const file=$("candidate-xlsx").files[0];if(!file)return toast("Choose an Excel file first.");
@@ -545,6 +545,7 @@ function captureAnswer(){
 }
 function shuffledCopy(items){const out=[...items];for(let i=out.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[out[i],out[j]]=[out[j],out[i]]}return out}
 async function startExam(id){
+  if(document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(()=>{});
   const {data:exam,error:ee}=await db.from("exams").select("*").eq("id",id).single();
   if(ee||!exam)return toast(ee?.message||"Examination not found.");
   const instructions=exam.instructions||"Read every question carefully. Select one option for MCQs. You can move between questions using the palette. Save your responses before submitting. The server timer starts when you begin. No negative marking.";
@@ -558,7 +559,6 @@ async function startExam(id){
   const randomized=shuffledCopy(questions.map(q=>({...q,options:Array.isArray(q.options)?shuffledCopy(q.options):q.options})));
   activeExam={exam,questions:randomized,startedAt:new Date(started).getTime(),responses:saved||{},review:new Set(),currentIndex:0,incidentCount:0};
   bindRemoteExamMonitoring();
-  if(document.documentElement.requestFullscreen){document.documentElement.requestFullscreen().catch(()=>{});}
   paintQuestion();
   const tick=()=>{
     if(!activeExam)return;

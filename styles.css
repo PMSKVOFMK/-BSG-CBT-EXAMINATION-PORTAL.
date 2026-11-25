@@ -52,3 +52,32 @@ footer{border-top:1px solid #e1e8f0;background:#fff;padding:20px 5% 24px;margin-
 
 /* Question paper import and verification */
 .import-summary{display:flex;gap:12px;flex-wrap:wrap;padding:12px;background:#edf4fb;border-radius:9px;margin:14px 0;font-size:12px}.import-errors{color:#a12622;font-size:12px;line-height:1.7}.import-table{min-width:850px}.import-table td{vertical-align:top;line-height:1.5}.import-good{color:#17623d;font-weight:800}.import-bad{color:#a12622;font-weight:800}#admin-question-import textarea{width:100%;min-height:120px;padding:12px;border:1px solid #cbd6e2;border-radius:9px;font:13px/1.55 ui-monospace,monospace}#admin-question-import input[type=file],#admin-question-import select{width:100%;padding:11px;border:1px solid #cbd6e2;border-radius:9px;background:white}#admin-question-import label{display:block;font-size:12px;font-weight:800;color:#344b64}#admin-question-import .form-grid{display:grid;grid-template-columns:1fr;gap:13px}#admin-question-import .wide{grid-column:1/-1}
+
+
+/* Samagam-inspired application workspace */
+.samagam-layout{display:grid;grid-template-columns:248px minmax(0,1fr);gap:18px;align-items:start;margin:18px 0 30px}
+.samagam-sidebar{position:sticky;top:14px;min-height:590px;background:#fff;border:1px solid var(--line);border-radius:17px;padding:15px;box-shadow:0 8px 24px #17375a08;display:flex;flex-direction:column}
+.samagam-side-brand{display:flex;align-items:center;gap:11px;padding:8px 7px 18px;border-bottom:1px solid var(--line)}
+.samagam-side-brand>span{width:42px;height:42px;border-radius:12px;background:#edf4fb;color:var(--navy);display:grid;place-items:center;font-size:25px}
+.samagam-side-brand b,.samagam-side-brand small{display:block}.samagam-side-brand b{font-size:11px;letter-spacing:.7px;color:var(--navy)}.samagam-side-brand small{font-size:10px;color:var(--muted);margin-top:4px}
+.samagam-nav-label{font-size:9px;letter-spacing:1.4px;font-weight:900;color:#9aa7b6;padding:18px 8px 8px}
+.samagam-nav{display:grid;gap:5px}.samagam-nav button{display:grid;grid-template-columns:25px 1fr 12px;align-items:center;gap:9px;width:100%;text-align:left;border:0;border-radius:10px;padding:11px 10px;background:transparent;color:#53677e;font:700 12px/1.3 inherit;cursor:pointer}
+.samagam-nav button:hover{background:#f3f7fb;color:var(--navy)}.samagam-nav button.active{background:#eaf2fb;color:#164f82;box-shadow:inset 3px 0 #d8a83d}
+.samagam-nav .nav-icon{font-size:17px;text-align:center}.samagam-nav .nav-chevron{font-size:18px;color:#91a0b2}
+.samagam-side-foot{margin-top:auto;padding:16px 8px 4px;border-top:1px solid var(--line);font-size:10px;color:#91a0b2}
+.samagam-pages{min-width:0}.samagam-page{display:none;min-width:0}.samagam-page.active{display:block;animation:pageIn .18s ease-out}
+.samagam-page-heading{padding:4px 2px 12px}.samagam-page-heading h2{font-size:25px;margin:6px 0 12px;color:var(--navy)}
+.samagam-page .stats{margin-top:0}.samagam-page .admin-module-grid{margin-top:14px}
+@keyframes pageIn{from{opacity:.55;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.id-choice{border:1px solid #d9e3ed;border-radius:12px;padding:13px 15px;margin:12px 0;background:#f9fbfd}
+.id-choice legend{font-size:12px;font-weight:850;color:var(--navy);padding:0 5px}
+.id-choice .choice-inline{display:inline-flex;align-items:center;gap:7px;margin:5px 15px 8px 0;font-size:12px;font-weight:750;color:#344b64}
+.id-choice .choice-inline input{width:auto;margin:0}.id-choice>label:not(.choice-inline){display:block;font-size:12px;font-weight:750;color:#344b64;margin:8px 0}
+.id-choice small{display:block;color:var(--muted);font-size:11px;line-height:1.5;margin-top:8px}
+.proctor-notice{background:#fff8e9;border-color:#f0dcae;color:#74541c}
+.event-row{display:grid;grid-template-columns:minmax(120px,1fr) 1fr auto;gap:10px;align-items:center;padding:11px 4px;border-bottom:1px solid var(--line);font-size:12px}
+.event-row small{color:var(--muted);font-size:10px}
+.language-switch{display:flex;align-items:center;gap:6px;color:#63758a;font-size:10px;font-weight:750}
+.language-switch select{border:1px solid var(--line);border-radius:8px;padding:7px 8px;background:#fff;color:var(--navy);font:inherit}
+@media(max-width:850px){.samagam-layout{grid-template-columns:1fr}.samagam-sidebar{position:static;min-height:0;padding:10px}.samagam-side-brand{padding-bottom:10px}.samagam-nav{display:flex;overflow-x:auto;padding:8px 0;gap:6px}.samagam-nav button{min-width:max-content;width:auto;grid-template-columns:20px auto;padding:10px}.samagam-nav .nav-chevron,.samagam-nav-label,.samagam-side-foot{display:none}.samagam-page-heading h2{font-size:22px}}
+@media(max-width:520px){.event-row{grid-template-columns:1fr auto}.event-row small{grid-column:1/-1}.id-choice .choice-inline{display:flex}.samagam-nav button{font-size:11px}}

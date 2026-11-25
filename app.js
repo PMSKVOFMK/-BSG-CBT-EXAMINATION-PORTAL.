@@ -77,6 +77,7 @@ async function examinerDashboard(root){
  e.preventDefault();
  const form=e.currentTarget,fd=new FormData(form);
  const student={full_name:String(fd.get("full_name")||"").trim(),father_name:String(fd.get("father_name")||"").trim(),scout_guide_number:String(fd.get("scout_guide_number")||"").trim(),candidate_level:String(fd.get("candidate_level")||"").trim(),section:String(fd.get("section")||"").trim(),bsg_uid:String(fd.get("bsg_uid")||"").trim(),candidate_id:String(fd.get("candidate_id")||"").trim(),role:"student"};
+ if(!["scout","guide"].includes(student.section))return toast("Choose Scout or Guide section.");
  if(!/^\d{7}$/.test(student.candidate_id))return toast("Candidate ID must contain exactly seven digits.");
  if(!/^\d{6,20}$/.test(student.bsg_uid))return toast("Enter a valid numeric BSG UID number (6–20 digits).");
  const button=form.querySelector("button[type=submit],button:not([type])");button.disabled=true;button.textContent="Creating secure login…";
@@ -86,7 +87,7 @@ async function examinerDashboard(root){
  const result=data?.results?.[0];
  if(!result?.success)return toast(result?.error||data?.error||"Student account could not be created.");
  const panel=$("student-created");panel.classList.remove("hidden");
- panel.innerHTML='<div class="created-head">✓ Candidate account created successfully</div><div class="credential-row"><span>Student</span><b>'+esc(student.full_name)+'</b></div><div class="credential-row"><span>Candidate Login ID</span><b>'+esc(student.candidate_id)+'</b></div><div class="credential-row"><span>Initial Password</span><b>'+esc(student.bsg_uid)+'</b></div><div class="credential-row"><span>Scout / Guide Number</span><b>'+esc(student.scout_guide_number)+'</b></div><div class="credential-row"><span>Progression Level</span><b>'+esc(student.candidate_level)+'</b></div><p class="tiny muted">Give the Candidate ID and BSG UID to the student securely. The password itself is not stored in the profile table.</p>';
+ panel.innerHTML='<div class="created-head">✓ Candidate account created successfully</div><div class="credential-row"><span>Student</span><b>'+esc(student.full_name)+'</b></div><div class="credential-row"><span>Candidate Login ID</span><b>'+esc(student.candidate_id)+'</b></div><div class="credential-row"><span>Initial Password</span><b>'+esc(student.bsg_uid)+'</b></div><div class="credential-row"><span>Section</span><b>'+esc(student.section.toUpperCase())+'</b></div><div class="credential-row"><span>Scout / Guide Number</span><b>'+esc(student.scout_guide_number)+'</b></div><div class="credential-row"><span>Progression Level</span><b>'+esc(student.candidate_level)+'</b></div><p class="tiny muted">Give the Candidate ID and BSG UID to the student securely. The password itself is not stored in the profile table.</p>';
  form.reset();toast("Student login created.");
 });
 
@@ -248,7 +249,7 @@ async function adminDashboard(root){
 async function createUsers(e){
  e.preventDefault();const fd=new FormData(e.currentTarget);
  const user={full_name:String(fd.get("full_name")||"").trim(),email:String(fd.get("email")||"").trim().toLowerCase(),password:String(fd.get("password")||""),section:String(fd.get("section")||""),role:"examiner"};
- if(!user.full_name||!user.email||!["scout","guide"].includes(user.section)||user.password.length<8)return toast("Enter the examiner name, email and a password of at least 8 characters.");
+ if(!user.full_name||!user.email||!["scout","guide"].includes(user.section)||user.password.length<8)return toast("Enter name, section, email and a password of at least 8 characters.");
  const button=e.currentTarget.querySelector('button[type="submit"]');button.disabled=true;button.textContent="Creating secure account…";
  const {data,error}=await db.functions.invoke("admin-create-users",{body:{users:[user]}});
  if(error){button.disabled=false;button.textContent="Generate Examiner ID & Create Account →";return toast(error.message)}

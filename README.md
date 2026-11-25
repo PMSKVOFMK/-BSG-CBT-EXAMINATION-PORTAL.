@@ -15,7 +15,7 @@ The frontend uses only the public publishable key in `config.js`. Never add a Su
 4. Insert the matching profile in `public.profiles` with role `admin`.
 5. Sign in using Administrator Login. The current Super Admin profile has already been configured.
 
-## Role responsibilities
+## Staff portal entry\n- Examiner sign-in: `https://pmskvofmk.github.io/-BSG-CBT-EXAMINATION-PORTAL./#/staff/examiner`\n- Super Admin sign-in: `https://pmskvofmk.github.io/-BSG-CBT-EXAMINATION-PORTAL./#/staff/super-admin`\n- The Super Admin creates examiner accounts. Each new examiner receives a unique `BSG-EXM-XXXXXXXX` ID and signs in with that ID plus the issued password. The registered email is retained for account administration.\n\n## Role responsibilities
 - **Super Admin:** creates examiner accounts only; monitors all examinations and submitted/published marks; exports results as CSV, Excel, or print/save as PDF. The Super Admin does not create question papers, answer keys, or student accounts and does not mark scripts.
 - **Examiner:** creates student accounts; creates and manages their own examinations, question papers and private answer keys; assigns students; schedules, opens and closes examinations; reviews written answers; finalises marks and publishes results.
 - **Student:** writes assigned examinations and views published results.

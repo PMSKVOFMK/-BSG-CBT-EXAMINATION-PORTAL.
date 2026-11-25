@@ -430,7 +430,7 @@ async function exportAccountIds(kind){
  const role=kind==="examiner"?"examiner":"student";
  const {data,error}=await db.from("profiles").select("full_name,email,examiner_code,candidate_id,section,candidate_level,created_at").eq("role",role).order("created_at",{ascending:false});
  if(error)return toast(error.message);
- const rows=(data||[]).map(p=>kind==="examiner"?{"Examiner ID":p.examiner_code||"","Examiner Name":p.full_name||"","Section":p.section||"","Email":p.email||""}:{"Candidate ID":p.candidate_id||"","Student Name":p.full_name||"","Section":p.section||"","Level":p.candidate_level||""});
+ const rows=(data||[]).map(p=>kind==="examiner"?{"Examiner ID":p.examiner_code||"","Examiner Name":p.full_name||"","Section":p.section||"","Email":p.email||""}:{"Candidate ID":p.candidate_id||"","Student Name":p.full_name||"","Section":p.section||"","Level":p.candidate_level||"","Initial Password (BSG UID)":p.bsg_uid||"Not available"});
  if(!rows.length)return toast("No "+role+" accounts are registered yet.");
  if(window.XLSX){const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,kind==="examiner"?"Examiner IDs":"Candidate IDs");XLSX.writeFile(wb,"BSG-"+(kind==="examiner"?"Examiner":"Candidate")+"-ID-Register.xlsx");}
  else{const cols=Object.keys(rows[0]),csv=[cols,...rows.map(r=>cols.map(c=>r[c]))].map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="BSG-"+kind+"-IDs.csv";a.click();URL.revokeObjectURL(a.href);}

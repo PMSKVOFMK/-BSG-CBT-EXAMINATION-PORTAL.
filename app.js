@@ -127,7 +127,7 @@ async function setExamStatus(examId,nextStatus){
     if(!qs?.length)return toast("Add questions before opening this examination.");
     const sum=qs.reduce((n,q)=>n+Number(q.marks||0),0);
     if(Math.abs(sum-Number(exam.total_marks))>0.001)return toast("Question marks total "+sum+" but exam total is "+exam.total_marks+". Correct the totals before opening.");
-    if(exam.starts_at&&new Date(exam.ends_at)<=new Date(exam.starts_at))return toast("Correct the examination schedule first.");
+    if(exam.starts_at&&exam.ends_at&&new Date(exam.ends_at)<=new Date(exam.starts_at))return toast("Correct the examination schedule first.");
     /* MCQ keys are written securely at question creation; never overwrite them during publication. */
     if(!confirm("Open this examination for assigned students? Once opened, question edits are locked."))return;
   }else if(!confirm("Close this examination now? Students will no longer be able to start or submit after the server deadline."))return;

@@ -8,9 +8,22 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 function toast(t){$("toast").textContent=t;$("toast").classList.remove("hidden");setTimeout(()=>$("toast").classList.add("hidden"),3500)}
 function showLogin(role){currentRole=role;$("welcome").classList.add("hidden");$("dashboard").classList.add("hidden");$("auth").classList.remove("hidden");$("auth-title").textContent=role==="admin"?"Administrator Login":role[0].toUpperCase()+role.slice(1)+" Login";$("auth-error").textContent=""}
 function goHome(){$("auth").classList.add("hidden");$("dashboard").classList.add("hidden");$("welcome").classList.remove("hidden")}
-$("login-form").addEventListener("submit",async e=>{e.preventDefault();if(!ready){$("auth-error").textContent="Database configuration is missing. Reload after setup.";return}const {error}=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});if(error){$("auth-error").textContent=error.message;return}await loadDashboard()});
 $("logout").addEventListener("click",async()=>{if(db)await db.auth.signOut();currentProfile=null;activeExam=null;clearInterval(examTimer);goHome()});
-async function loadDashboard(){const {data:{user}}=await db.auth.getUser();if(!user)return goHome();const {data:profile,error}=await db.from("profiles").select("*").eq("id",user.id).single();if(error||!profile){$("auth-error").textContent="Your portal profile is missing. Contact the administrator.";await db.auth.signOut();return}if(currentRole&&profile.role!==currentRole){$("auth-error").textContent="This account does not have the selected role.";await db.auth.signOut();return}currentProfile=profile;currentRole=profile.role;$("staff-hub").classList.add("hidden");$("auth").classList.add("hidden");$("welcome").classList.add("hidden");$("dashboard").classList.remove("hidden");$("dash-title").textContent=profile.role==="admin"?"Administrator Dashboard":profile.role==="examiner"?"Examiner Dashboard":"Student Dashboard";const institution=$("dashboard-institution");if(institution)institution.textContent="PM SHRI Kendriya Vidyalaya, Ordnance Factory, Medak, Eddumailaram · School Code: 1525";$("user-email").textContent=profile.full_name+(profile.section?" · "+profile.section.toUpperCase()+" SECTION":"")+(profile.role==="student"&&profile.candidate_id?" · Candidate ID: "+profile.candidate_id:" · "+user.email)+(profile.role==="examiner"&&profile.examiner_code?" · Examiner ID: "+profile.examiner_code:"");await renderDashboard()}
+async function loadDashboard(){
+ if(!db){$("auth-error").textContent="Database configuration is missing. Reload after setup.";return}
+ const {data:{user},error:userError}=await db.auth.getUser();
+ if(userError||!user){$("auth-error").textContent=userError?.message||"Please sign in again.";return}
+ const {data:profile,error}=await db.from("profiles").select("*").eq("id",user.id).maybeSingle();
+ if(error||!profile){$("auth-error").textContent="Your portal profile is missing or could not be loaded. Contact the administrator."+(error?.message?" ("+error.message+")":"");await db.auth.signOut();return}
+ if(currentRole&&profile.role!==currentRole){$("auth-error").textContent="This account does not have the selected role. Please use the correct login page.";await db.auth.signOut();return}
+ if(!["admin","examiner","student"].includes(profile.role)){$("auth-error").textContent="This account has no recognised portal role. Contact the administrator.";await db.auth.signOut();return}
+ currentProfile=profile;currentRole=profile.role;
+ $("staff-hub").classList.add("hidden");$("auth").classList.add("hidden");$("welcome").classList.add("hidden");$("dashboard").classList.remove("hidden");
+ $("dash-title").textContent=profile.role==="admin"?"Super Admin Dashboard":profile.role==="examiner"?"Examiner Dashboard":"Student Dashboard";
+ const institution=$("dashboard-institution");if(institution)institution.textContent="PM SHRI Kendriya Vidyalaya, Ordnance Factory, Medak, Eddumailaram · School Code: 1525";
+ $("user-email").textContent=(profile.full_name||"Portal user")+(profile.section?" · "+profile.section.toUpperCase()+" SECTION":"")+(profile.role==="student"&&profile.candidate_id?" · Candidate ID: "+profile.candidate_id:" · "+(profile.email||user.email||""))+(profile.role==="examiner"&&profile.examiner_code?" · Examiner ID: "+profile.examiner_code:"");
+ try{await renderDashboard()}catch(err){$("dash-content").innerHTML='<div class="data-card"><h3>Dashboard could not be loaded</h3><p class="error">'+esc(err?.message||"Please refresh and try again.")+'</p><button class="secondary" type="button" onclick="renderDashboard()">Retry dashboard</button></div>'}
+}
 async function renderDashboard(){const root=$("dash-content");root.innerHTML='<p class="muted">Loading workspace…</p>';if(currentRole==="admin")return adminDashboard(root);if(currentRole==="examiner")return examinerDashboard(root);return studentDashboard(root)}
 async function adminDashboard(root){
  const [{data:exams,error:examError},{count:examiners},{count:students},{count:submissions},{data:examinerProfiles,error:profileError}]=await Promise.all([
@@ -369,17 +382,22 @@ function showStaffPortal(){
  $("staff-hub").classList.remove("hidden");
 }
 function routePortal(){
- const route=location.hash.toLowerCase();
+ const route=location.hash.toLowerCase().replace(/\/$/,"");
  $("staff-hub").classList.add("hidden");
  if(route==="#/staff"){document.body.dataset.portalRole="staff";showStaffPortal()}
- else if(route==="#/staff/examiner"){document.body.dataset.portalRole="examiner";showLogin("examiner")}
- else if(route==="#/staff/super-admin"){document.body.dataset.portalRole="admin";showLogin("admin")}
- else if(route==="#/student"){document.body.dataset.portalRole="student";showLogin("student")}
+ else if(route==="#/staff/examiner"||route==="#/login/examiner"){document.body.dataset.portalRole="examiner";showLogin("examiner")}
+ else if(route==="#/staff/super-admin"||route==="#/login/super-admin"||route==="#/login/admin"){document.body.dataset.portalRole="admin";showLogin("admin")}
+ else if(route==="#/student"||route==="#/login/student"){document.body.dataset.portalRole="student";showLogin("student")}
  else{document.body.dataset.portalRole="home";$("auth").classList.add("hidden");if(!$("dashboard").classList.contains("hidden"))return;$("welcome").classList.remove("hidden")}
 }
 window.addEventListener("hashchange",routePortal);
 routePortal();
-
+if(db){
+ db.auth.getSession().then(({data,error})=>{
+  if(error){console.warn("Session restore:",error.message);return}
+  if(data?.session?.user&&!currentProfile)loadDashboard();
+ });
+}
 
 /* Examiner ID authentication and Super Admin account register refresh. */
 function showLogin(role){

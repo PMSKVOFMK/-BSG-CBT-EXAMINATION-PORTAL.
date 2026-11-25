@@ -90,6 +90,17 @@ async function examinerDashboard(root){
  panel.innerHTML='<div class="created-head">✓ Candidate account created successfully</div><div class="credential-row"><span>Student</span><b>'+esc(student.full_name)+'</b></div><div class="credential-row"><span>Candidate Login ID</span><b>'+esc(student.candidate_id)+'</b></div><div class="credential-row"><span>Initial Password</span><b>'+esc(student.bsg_uid)+'</b></div><div class="credential-row"><span>Section</span><b>'+esc(student.section.toUpperCase())+'</b></div><div class="credential-row"><span>Scout / Guide Number</span><b>'+esc(student.scout_guide_number)+'</b></div><div class="credential-row"><span>Progression Level</span><b>'+esc(student.candidate_level)+'</b></div><p class="tiny muted">Give the Candidate ID and BSG UID to the student securely. The password itself is not stored in the profile table.</p>';
  form.reset();toast("Student login created.");
 });
+ const bulk=document.createElement("div");bulk.className="data-card";bulk.innerHTML='<h3>Bulk register candidates from Excel</h3><p class="muted tiny">Upload .xlsx/.xls with columns: full_name, father_name, scout_guide_number, candidate_level, bsg_uid, candidate_id, section. Keep the already-issued seven-digit Candidate IDs.</p><input id="candidate-xlsx" type="file" accept=".xlsx,.xls"><button type="button" class="secondary" id="import-candidates">Import Excel sheet</button><div id="bulk-created" class="created-credentials hidden"></div>';
+ const registration=$("student-users-form");registration.parentElement.insertBefore(bulk,registration.nextSibling);
+ $("import-candidates").addEventListener("click",async()=>{
+  const file=$("candidate-xlsx").files[0];if(!file)return toast("Choose an Excel file first.");
+  const wb=XLSX.read(await file.arrayBuffer(),{type:"array"});const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:""});
+  if(!rows.length)return toast("The Excel sheet is empty.");if(rows.length>100)return toast("Import a maximum of 100 candidates at a time.");
+  const users=rows.map(r=>({full_name:String(r.full_name||r.name||"").trim(),father_name:String(r.father_name||"").trim(),scout_guide_number:String(r.scout_guide_number||"").trim(),candidate_level:String(r.candidate_level||"").trim(),bsg_uid:String(r.bsg_uid||"").trim(),candidate_id:String(r.candidate_id||"").trim(),section:String(r.section||"").trim().toLowerCase(),role:"student"}));
+  if(users.some(u=>!u.full_name||!u.father_name||!u.scout_guide_number||!u.candidate_level||!/^\\d{7}$/.test(u.candidate_id)||!/^\\d{6,20}$/.test(u.bsg_uid)||!["scout","guide"].includes(u.section)))return toast("Check required columns, Candidate IDs, BSG UIDs and Scout/Guide sections.");
+  const btn=$("import-candidates");btn.disabled=true;const {data,error}=await db.functions.invoke("admin-create-users",{body:{users}});btn.disabled=false;
+  if(error)return toast(error.message);const results=data?.results||[],ok=results.filter(x=>x.success),bad=results.filter(x=>!x.success);const box=$("bulk-created");box.classList.remove("hidden");box.innerHTML="<b>"+ok.length+" created · "+bad.length+" failed</b>"+(bad.length?"<ul>"+bad.map(x=>"<li>"+esc(x.candidate_id||"Row")+": "+esc(x.error)+"</li>").join("")+"</ul>":"");toast("Bulk registration completed.");
+ });
 
 }
 async function saveMark(id){const marks=Number($("mark-"+id).value);if(!Number.isFinite(marks)||marks<0)return toast("Invalid mark.");const {error}=await db.from("answers").update({marks_awarded:marks}).eq("id",id);toast(error?error.message:"Marks saved")}

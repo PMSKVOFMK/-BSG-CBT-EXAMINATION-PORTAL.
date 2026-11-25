@@ -2,7 +2,7 @@
 const cfg=window.BSG_CBT_CONFIG||{};
 const ready=!!(cfg.url&&cfg.anonKey&&window.supabase);
 const db=ready?window.supabase.createClient(cfg.url,cfg.anonKey):null;
-let currentRole=null,currentProfile=null,activeExam=null,examTimer=null;
+let currentRole=null,currentProfile=null,activeExam=null,examTimer=null,saveTimer=null;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function toast(t){$("toast").textContent=t;$("toast").classList.remove("hidden");setTimeout(()=>$("toast").classList.add("hidden"),3500)}
@@ -328,6 +328,11 @@ function paintQuestion(){
   area.querySelectorAll('input[name="cbt-answer"]').forEach(el=>el.addEventListener("change",captureAnswer));
   const ta=$("cbt-text-answer");if(ta)ta.addEventListener("input",captureAnswer);
 }
+async function saveExamProgress(){
+ if(!activeExam)return;
+ const {error}=await db.rpc("save_exam_progress",{p_exam_id:activeExam.exam.id,p_answers:activeExam.responses});
+ if(error&&activeExam)toast("Answer auto-save warning: "+error.message);
+}
 function captureAnswer(){
   if(!activeExam)return;
   const q=activeExam.questions[activeExam.currentIndex];
@@ -335,6 +340,8 @@ function captureAnswer(){
   const typed=$("cbt-text-answer");
   if(selected)activeExam.responses[q.id]=selected.value;
   else if(typed)activeExam.responses[q.id]=typed.value;
+  if(saveTimer)clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>{saveTimer=null;saveExamProgress()},450);
 }
 function shuffledCopy(items){const out=[...items];for(let i=out.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[out[i],out[j]]=[out[j],out[i]]}return out}
 async function startExam(id){
@@ -346,8 +353,10 @@ async function startExam(id){
   if(se)return toast(se.message);
   const {data:questions,error:qe}=await db.from("questions").select("*").eq("exam_id",id).order("position");
   if(qe||!questions?.length)return toast(qe?.message||"Questions are not available.");
+  const {data:saved,error:progressError}=await db.rpc("get_exam_progress",{p_exam_id:id});
+  if(progressError)return toast(progressError.message);
   const randomized=shuffledCopy(questions.map(q=>({...q,options:Array.isArray(q.options)?shuffledCopy(q.options):q.options})));
-  activeExam={exam,questions:randomized,startedAt:new Date(started).getTime(),responses:{},review:new Set(),currentIndex:0};
+  activeExam={exam,questions:randomized,startedAt:new Date(started).getTime(),responses:saved||{},review:new Set(),currentIndex:0};
   paintQuestion();
   const tick=()=>{
     if(!activeExam)return;
@@ -360,6 +369,7 @@ async function startExam(id){
 async function submitExam(auto){
   if(!activeExam)return;
   captureAnswer();
+  if(saveTimer){clearTimeout(saveTimer);saveTimer=null;}
   const questions=activeExam.questions,examId=activeExam.exam.id;
   const answered=questions.filter(q=>String(activeExam.responses[q.id]||"").trim()).length;
   if(!auto&&!confirm("Submit this examination?\n\nAnswered: "+answered+"\nUnanswered: "+(questions.length-answered)+"\n\nYou cannot submit again after this."))return;

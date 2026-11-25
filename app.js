@@ -52,3 +52,98 @@ async function saveMark(id){const marks=Number($("mark-"+id).value);if(!Number.i
 async function publishResult(id){const {data:ans,error}=await db.from("answers").select("marks_awarded,auto_marks").eq("submission_id",id);if(error)return toast(error.message);const total=(ans||[]).reduce((n,a)=>n+Number(a.marks_awarded??a.auto_marks??0),0);const {error:e}=await db.from("submissions").update({status:"published",marks_awarded:total,published_at:new Date().toISOString()}).eq("id",id);toast(e?e.message:"Result published: "+total+" marks")}
 async function exportResults(examId,format){const {data:subs,error}=await db.from("submissions").select("*,answers(*,questions(question_text,marks,position))").eq("exam_id",examId).order("submitted_at");if(error)return toast(error.message);const ids=[...new Set((subs||[]).map(s=>s.student_id))];const {data:profiles}=ids.length?await db.from("profiles").select("id,full_name,email").in("id",ids):{data:[]};const map=Object.fromEntries((profiles||[]).map(p=>[p.id,p]));const rows=(subs||[]).map(s=>{const p=map[s.student_id]||{};const row={"Student Name":p.full_name||"","Email":p.email||"","Exam ID":examId,"Submitted At":s.submitted_at,"Status":s.status};for(const a of (s.answers||[]).sort((a,b)=>(a.questions?.position||0)-(b.questions?.position||0))){row["Q: "+(a.questions?.question_text||a.question_id)]=a.marks_awarded??a.auto_marks??0}row["Total Marks"]=s.marks_awarded??"";return row});if(format==="pdf"){const w=window.open("","_blank");if(!w)return toast("Allow pop-ups to print results.");const cols=Object.keys(rows[0]||{"No submissions":""});w.document.write("<html><head><title>CBT Results</title><style>body{font:12px Arial;padding:20px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:6px;text-align:left}</style></head><body><h2>BSG CBT Examination Results</h2><table><thead><tr>"+cols.map(c=>"<th>"+esc(c)+"</th>").join("")+"</tr></thead><tbody>"+rows.map(r=>"<tr>"+cols.map(c=>"<td>"+esc(r[c])+"</td>").join("")+"</tr>").join("")+"</tbody></table><script>window.print()<\/script></body></html>");w.document.close();return}if(format==="xlsx"&&window.XLSX){const ws=XLSX.utils.json_to_sheet(rows);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Results");XLSX.writeFile(wb,"BSG-CBT-Results.xlsx");return}const cols=Object.keys(rows[0]||{"No submissions":""});const csv=[cols,...rows.map(r=>cols.map(c=>r[c]))].map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="BSG-CBT-Results.csv";a.click();URL.revokeObjectURL(a.href)}
 (async()=>{if(!ready)return;const {data:{session}}=await db.auth.getSession();if(session)await loadDashboard()})();
+
+/* Missing examiner actions completed in this revision. */
+async function createExam(e){
+  e.preventDefault();
+  const fd=new FormData(e.currentTarget);
+  const title=String(fd.get("title")||"").trim();
+  const level=String(fd.get("level")||"").trim();
+  const total_marks=Number(fd.get("total_marks"));
+  const duration_minutes=Number(fd.get("duration_minutes"));
+  const toIso=v=>v?new Date(v).toISOString():null;
+  const starts_at=toIso(fd.get("starts_at"));
+  const ends_at=toIso(fd.get("ends_at"));
+  if(!title||!level||!Number.isFinite(total_marks)||total_marks<=0||!Number.isFinite(duration_minutes)||duration_minutes<=0){toast("Enter a valid title, marks and duration.");return}
+  if(starts_at&&ends_at&&new Date(ends_at)<=new Date(starts_at)){toast("End date/time must be after the start date/time.");return}
+  const {data,error}=await db.from("exams").insert({title,level,total_marks,duration_minutes,starts_at,ends_at,instructions:String(fd.get("instructions")||""),status:"draft",created_by:currentProfile.id}).select("id").single();
+  if(error){toast(error.message);return}
+  toast("Draft examination created. Add questions and answer keys next.");
+  await renderDashboard();
+}
+async function addQuestion(examId){
+  const {data:exam,error:ee}=await db.from("exams").select("id,title,total_marks,status").eq("id",examId).single();
+  if(ee||!exam)return toast(ee?.message||"Examination not found.");
+  if(exam.status!=="draft")return toast("Questions can only be changed while the examination is a draft.");
+  const question_text=prompt("Enter the question text:");
+  if(!question_text?.trim())return;
+  const kind=(prompt("Question type: enter MCQ, SHORT, LONG or DRAWING","MCQ")||"MCQ").trim().toLowerCase();
+  const question_type=kind==="mcq"?"mcq":kind==="short"?"short":kind==="long"?"long":kind==="drawing"?"drawing":null;
+  if(!question_type)return toast("Unsupported question type.");
+  const marks=Number(prompt("Marks for this question:", "1"));
+  if(!Number.isFinite(marks)||marks<=0)return toast("Enter a positive mark value.");
+  let options=null,correct="";
+  if(question_type==="mcq"){
+    const raw=prompt("Enter exactly four options separated by | (vertical bar):","Option A|Option B|Option C|Option D");
+    options=(raw||"").split("|").map(s=>s.trim()).filter(Boolean);
+    if(options.length!==4||new Set(options).size!==4)return toast("MCQ requires four different options separated by |.");
+    correct=prompt("Enter the exact correct option text:",options[0])||"";
+    if(!options.includes(correct.trim()))return toast("Correct answer must exactly match one of the four options.");
+    correct=correct.trim();
+  }else if(question_type==="short"||question_type==="long"){
+    correct=prompt("Optional accepted answer (can be left blank; examiner will mark):","")||"";
+  }
+  const {count}=await db.from("questions").select("*",{count:"exact",head:true}).eq("exam_id",examId);
+  const position=(count||0)+1;
+  const {data:q,error}=await db.from("questions").insert({exam_id:examId,question_text:question_text.trim(),question_type,marks,options,position}).select("id").single();
+  if(error)return toast(error.message);
+  if(correct){
+    const {error:keyError}=await db.rpc("set_question_key",{p_question_id:q.id,p_correct_answer:correct,p_accepted_answers:[]});
+    if(keyError){toast("Question saved, but answer key could not be saved: "+keyError.message);return}
+  }else if(question_type==="mcq"){
+    toast("Question saved but key missing. Do not publish until its key is added.");return;
+  }
+  toast("Question and answer key saved.");
+  await renderDashboard();
+}
+async function assignExam(examId){
+  const email=(prompt("Enter the student's registered email address:")||"").trim().toLowerCase();
+  if(!email)return;
+  const {data:student,error:pe}=await db.from("profiles").select("id,full_name,email,role").eq("email",email).maybeSingle();
+  if(pe||!student)return toast(pe?.message||"No student account found with that email.");
+  if(student.role!=="student")return toast("That account is not a student account.");
+  const {error}=await db.from("exam_assignments").insert({exam_id:examId,student_id:student.id});
+  if(error)return toast(error.code==="23505"?"This student is already assigned.":error.message);
+  toast("Examination assigned to "+student.full_name+".");
+  await renderDashboard();
+}
+async function setExamStatus(examId,nextStatus){
+  if(!["published","closed"].includes(nextStatus))return;
+  const {data:exam,error}=await db.from("exams").select("*").eq("id",examId).single();
+  if(error||!exam)return toast(error?.message||"Examination not found.");
+  if(nextStatus==="published"){
+    const {data:qs,error:qe}=await db.from("questions").select("id,marks,question_type").eq("exam_id",examId);
+    if(qe)return toast(qe.message);
+    if(!qs?.length)return toast("Add questions before opening this examination.");
+    const sum=qs.reduce((n,q)=>n+Number(q.marks||0),0);
+    if(Math.abs(sum-Number(exam.total_marks))>0.001)return toast("Question marks total "+sum+" but exam total is "+exam.total_marks+". Correct the totals before opening.");
+    if(exam.starts_at&&new Date(exam.ends_at)<=new Date(exam.starts_at))return toast("Correct the examination schedule first.");
+    const missing=qs.filter(q=>q.question_type==="mcq");
+    for(const q of missing){
+      const {data:keyOk,error:ke}=await db.rpc("set_question_key",{p_question_id:q.id,p_correct_answer:"",p_accepted_answers:[]});
+      if(ke)return toast("An MCQ answer key is missing or inaccessible. Check each MCQ key before opening.");
+    }
+    if(!confirm("Open this examination for assigned students? Once opened, question edits are locked."))return;
+  }else if(!confirm("Close this examination now? Students will no longer be able to start or submit after the server deadline."))return;
+  const {error:up}=await db.from("exams").update({status:nextStatus}).eq("id",examId);
+  if(up)return toast(up.message);
+  toast(nextStatus==="published"?"Examination opened.":"Examination closed.");
+  await renderDashboard();
+}
+
+/* Separate staff and candidate entry pages share this authenticated backend. */
+(function routePortal(){
+  const path=location.pathname.toLowerCase();
+  if(path.endsWith("/student.html")){document.body.dataset.portalRole="student";const grid=document.querySelector(".role-grid");if(grid)grid.innerHTML='<article class="role"><div class="role-icon">🎓</div><h3>Student Examination Portal</h3><p>Sign in to view your assigned examinations, instructions, question paper and published results.</p><button class="primary" onclick="showLogin(\'student\')">Student Login</button></article>';const btn=document.querySelector(".hero .primary");if(btn)btn.onclick=()=>showLogin("student");setTimeout(()=>showLogin("student"),0)}
+  if(path.endsWith("/staff.html")){document.body.dataset.portalRole="staff";const grid=document.querySelector(".role-grid");if(grid)grid.innerHTML='<article class="role"><div class="role-icon">🧑‍🏫</div><h3>Examiner</h3><p>Create examinations, prepare question papers, assign candidates and evaluate written responses.</p><button class="primary" onclick="showLogin(\'examiner\')">Examiner Login</button></article><article class="role"><div class="role-icon">🛡️</div><h3>Super Admin</h3><p>Create examiner accounts, monitor examinations and export final marks.</p><button class="secondary" onclick="showLogin(\'admin\')">Administrator Login</button></article>';const btn=document.querySelector(".hero .primary");if(btn)btn.onclick=()=>showLogin("examiner")}
+})();

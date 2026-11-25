@@ -123,7 +123,7 @@ async function examinerDashboard(root){
 
 function buildExaminerWorkspace(root){
  const reg=$("student-users-form")?.closest(".data-card");
- const bulk=reg?.nextElementSibling?.querySelector("#candidate-xlsx")?reg.nextElementSibling:null;
+ const bulk=reg?.querySelector("#candidate-xlsx")?.closest(".data-card")||null;
  const titles=[...root.querySelectorAll(".section-title")];
  const examTitle=titles.find(x=>x.textContent.includes("Available examinations for candidate assignment"));
  const submissionTitle=titles.find(x=>x.textContent.includes("Submitted answer sheets"));
@@ -442,7 +442,7 @@ function openAdminModule(id){
  document.querySelectorAll(".samagam-page").forEach(p=>p.classList.toggle("active",p.dataset.page===id));
  document.querySelectorAll(".samagam-nav button").forEach(b=>b.classList.toggle("active",b.dataset.page===id));
  const selected=document.querySelector('.samagam-nav button[data-page="'+id+'"]');
- if(selected&&$("dash-title"))$("dash-title").textContent=selected.dataset.title||selected.textContent.trim();
+ if(selected&&$("dash-title"))$("dash-title").textContent=selected.dataset.title||selected.textContent.trim();applyPortalLanguage();
 }
 function buildAdminWorkspace(root){
  const stats=root.querySelector(".stats"),quick=root.querySelector(".admin-module-grid");

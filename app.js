@@ -137,14 +137,75 @@ async function setExamStatus(examId,nextStatus){
   await renderDashboard();
 }
 
-/* Separate staff and candidate entry pages share this authenticated backend. */
-(function routePortal(){
-  const path=location.pathname.toLowerCase();
-  if(path.endsWith("/student.html")){document.body.dataset.portalRole="student";const grid=document.querySelector(".role-grid");if(grid)grid.innerHTML='<article class="role"><div class="role-icon">🎓</div><h3>Student Examination Portal</h3><p>Sign in to view your assigned examinations, instructions, question paper and published results.</p><button class="primary" onclick="showLogin(\'student\')">Student Login</button></article>';const btn=document.querySelector(".hero .primary");if(btn)btn.onclick=()=>showLogin("student");setTimeout(()=>showLogin("student"),0)}
-  if(path.endsWith("/staff.html")){document.body.dataset.portalRole="staff";const grid=document.querySelector(".role-grid");if(grid)grid.innerHTML='<article class="role"><div class="role-icon">🧑‍🏫</div><h3>Examiner</h3><p>Create examinations, prepare question papers, assign candidates and evaluate written responses.</p><button class="primary" onclick="showLogin(\'examiner\')">Examiner Login</button></article><article class="role"><div class="role-icon">🛡️</div><h3>Super Admin</h3><p>Create examiner accounts, monitor examinations and export final marks.</p><button class="secondary" onclick="showLogin(\'admin\')">Administrator Login</button></article>';const btn=document.querySelector(".hero .primary");if(btn)btn.onclick=()=>showLogin("examiner")}
-})();
+/* Dedicated staff sign-in routes; student landing remains the public home. */
+function routePortal(){
+ const route=location.hash.toLowerCase();
+ if(route==="#/staff/examiner"){document.body.dataset.portalRole="examiner";showLogin("examiner")}
+ else if(route==="#/staff/super-admin"){document.body.dataset.portalRole="admin";showLogin("admin")}
+ else if(route==="#/student"){document.body.dataset.portalRole="student";showLogin("student")}
+ else{document.body.dataset.portalRole="home";$("auth").classList.add("hidden");if(!$("dashboard").classList.contains("hidden"))return;$("welcome").classList.remove("hidden")}
+}
+window.addEventListener("hashchange",routePortal);
+routePortal();
 
 
+/* Examiner ID authentication and Super Admin account register refresh. */
+function showLogin(role){
+ currentRole=role;$("welcome").classList.add("hidden");$("dashboard").classList.add("hidden");$("auth").classList.remove("hidden");
+ $("auth-title").textContent=role==="admin"?"Super Admin Login":role==="examiner"?"Examiner Login":"Student Login";
+ $("auth-sub").textContent=role==="admin"?"Authorised portal administration access.":role==="examiner"?"Enter the unique Examiner ID issued by the Super Admin.":"Sign in to access your assigned examination workspace.";
+ $("identity-caption").textContent=role==="examiner"?"Examiner ID":"Registered email address";
+ $("email").type=role==="examiner"?"text":"email";$("email").placeholder=role==="examiner"?"BSG-EXM-XXXXXXXX":"name@example.com";
+ $("auth-help").textContent=role==="examiner"?"Use the unique Examiner ID and temporary password issued by the Super Admin.":"Use the account credentials issued by your portal administrator.";
+ $("auth-error").textContent="";
+}
+$("login-form").addEventListener("submit",async e=>{
+ e.preventDefault();e.stopImmediatePropagation();
+ if(!ready){$("auth-error").textContent="Database configuration is missing. Reload after setup.";return}
+ const identity=$("email").value.trim(),password=$("password").value;
+ if(currentRole==="examiner"){
+  const {data,error}=await db.functions.invoke("portal-login",{body:{login_id:identity,password}});
+  if(error||!data?.session){$("auth-error").textContent=data?.error||error?.message||"Invalid Examiner ID or password.";return}
+  const {error:setError}=await db.auth.setSession({access_token:data.session.access_token,refresh_token:data.session.refresh_token});
+  if(setError){$("auth-error").textContent=setError.message;return}
+ }else{
+  const {error}=await db.auth.signInWithPassword({email:identity,password});
+  if(error){$("auth-error").textContent=error.message;return}
+ }
+ await loadDashboard();
+},true);
+
+async function adminDashboard(root){
+ const [{data:exams},{count:examiners},{count:students},{count:submissions},{data:examinerRows,error:listError}]=await Promise.all([
+  db.from("exams").select("*").order("created_at",{ascending:false}),
+  db.from("profiles").select("*",{count:"exact",head:true}).eq("role","examiner"),
+  db.from("profiles").select("*",{count:"exact",head:true}).eq("role","student"),
+  db.from("submissions").select("*",{count:"exact",head:true}),
+  db.from("profiles").select("id,full_name,email,examiner_code,created_at").eq("role","examiner").order("created_at",{ascending:false})
+ ]);
+ root.innerHTML=`<div class="stats"><div class="tile"><strong>${exams?.length||0}</strong><span>Examinations</span></div><div class="tile"><strong>${examiners||0}</strong><span>Examiner accounts</span></div><div class="tile"><strong>${students||0}</strong><span>Student accounts</span></div><div class="tile"><strong>${submissions||0}</strong><span>Answer submissions</span></div></div>
+ <div class="admin-grid"><section class="data-card examiner-create"><div class="card-kicker">ACCOUNT MANAGEMENT · 01</div><h3>Create examiner credentials</h3><p class="muted tiny">Create an authorised account. The portal generates a unique BSG Examiner ID automatically.</p><form id="examiner-create-form" class="form-grid"><label>Examiner full name<input name="full_name" required placeholder="Enter full name"></label><label>Official email address<input name="email" type="email" required placeholder="examiner@example.com"></label><label class="wide">Temporary password<input name="password" type="password" minlength="8" required placeholder="Minimum 8 characters"></label><div class="wide"><button class="primary" type="submit">Generate Examiner ID &amp; Create Account →</button></div></form><div id="created-credentials" class="created-credentials hidden"></div></section>
+ <section class="data-card admin-guidance"><div class="card-kicker">SECURE WORKFLOW · 02</div><h3>Examiner onboarding</h3><ol><li>Enter the examiner's name and registered email.</li><li>Set a temporary password for first access.</li><li>The system generates a unique Examiner ID.</li><li>Share the ID and temporary password securely.</li></ol><div class="notice">Examiner access is restricted to accounts created by the Super Admin. Public examiner registration is disabled.</div></section></div>
+ <div class="section-title"><div><span class="eyebrow">AUTHORISATION REGISTER</span><h2>Registered examiners</h2></div><span class="portal-mark">${examinerRows?.length||0} ACCOUNTS</span></div>
+ <div class="data-card table-wrap">${listError?'<p class="error">Unable to load examiner register: '+esc(listError.message)+'</p>':(examinerRows||[]).length?'<table class="examiner-table"><thead><tr><th>Examiner ID</th><th>Full name</th><th>Registered email</th><th>Account created</th></tr></thead><tbody>'+(examinerRows||[]).map(x=>'<tr><td><b class="examiner-code">'+esc(x.examiner_code||"Pending ID")+'</b></td><td>'+esc(x.full_name)+'</td><td>'+esc(x.email)+'</td><td>'+new Date(x.created_at).toLocaleDateString()+'</td></tr>').join("")+'</tbody></table>':'<div class="empty-state"><span>🧑‍🏫</span><b>No examiner accounts yet</b><p>Create the first examiner account using the form above.</p></div>'}</div>
+ <div class="section-title"><div><span class="eyebrow">OVERSIGHT &amp; REPORTING</span><h2>Examination monitoring</h2></div></div>
+ ${(exams||[]).map(x=>`<div class="exam-card"><div class="exam-top"><div><h3>${esc(x.title)}</h3><p>${esc(x.level)} · ${x.total_marks} marks · ${x.duration_minutes} minutes</p></div><span class="status">${esc(x.status)}</span></div><p class="muted tiny">Created by examiner account: ${esc(x.created_by)}</p><div class="action-row"><button class="secondary" onclick="exportResults('${x.id}','csv')">Export CSV</button><button class="secondary" onclick="exportResults('${x.id}','xlsx')">Export Excel</button><button class="secondary" onclick="exportResults('${x.id}','pdf')">Print / PDF</button></div></div>`).join("")||'<p class="muted">No examinations have been created yet.</p>'}
+ <div class="notice">Super Admin has monitoring and account-authorisation access. Examiner-created question papers, schedules, student assignments and marking remain in the Examiner Dashboard. The existing Super Admin account is unchanged.</div>`;
+ $("examiner-create-form").addEventListener("submit",createUsers);
+}
+async function createUsers(e){
+ e.preventDefault();const fd=new FormData(e.currentTarget);
+ const user={full_name:String(fd.get("full_name")||"").trim(),email:String(fd.get("email")||"").trim().toLowerCase(),password:String(fd.get("password")||""),role:"examiner"};
+ if(!user.full_name||!user.email||user.password.length<8)return toast("Enter the examiner name, email and a password of at least 8 characters.");
+ const button=e.currentTarget.querySelector('button[type="submit"]');button.disabled=true;button.textContent="Creating secure account…";
+ const {data,error}=await db.functions.invoke("admin-create-users",{body:{users:[user]}});
+ if(error){button.disabled=false;button.textContent="Generate Examiner ID & Create Account →";return toast(error.message)}
+ const result=data?.results?.[0];if(!result?.success){button.disabled=false;button.textContent="Generate Examiner ID & Create Account →";return toast(result?.error||"Examiner account could not be created.")}
+ await adminDashboard($("dash-content"));
+ const panel=$("created-credentials");
+ panel.innerHTML='<div class="created-head">✓ Examiner account created successfully</div><div class="credential-row"><span>Examiner ID</span><b>'+esc(result.examiner_id)+'</b><button type="button" class="secondary" onclick="navigator.clipboard.writeText(\''+esc(result.examiner_id)+'\').then(()=>toast(\'Examiner ID copied\'))">Copy ID</button></div><div class="credential-row"><span>Login email</span><b>'+esc(user.email)+'</b></div><p class="muted tiny">Share the Examiner ID and temporary password securely. The password is not stored in this register.</p>';
+ panel.classList.remove("hidden");toast("Examiner account created: "+result.examiner_id);
+}
 /* Candidate CBT workspace: instruction gate, question palette and review navigation. */
 function paintQuestion(){
   if(!activeExam)return;

@@ -121,3 +121,57 @@ footer{border-top:1px solid #e1e8f0;background:#fff;padding:20px 5% 24px;margin-
  #dashboard .dash-head h1{font-size:27px}
  #dashboard .samagam-page-heading h2{font-size:22px}
 }
+
+
+/* BSG vibrant visual finish — warm saffron, teal and royal blue accents */
+:root{
+ --navy:#102f57;--blue:#1768a8;--gold:#f0b83f;
+ --bsg-teal:#0c8c88;--bsg-coral:#e87555;--bsg-violet:#6655a5;
+}
+body{background:linear-gradient(180deg,#f4f7fc 0%,#f8f9fc 52%,#f2f7f7 100%)}
+.portal-header{background:linear-gradient(100deg,#fff 0%,#f8fbff 65%,#fff8e9 100%);box-shadow:0 4px 18px #17375a0a}
+.brand-crest{background:linear-gradient(145deg,#eaf3ff,#fff0c9);color:#164c7b;box-shadow:inset 0 0 0 1px #e6d39c}
+.welcome-banner{
+ background:linear-gradient(118deg,#102c54 0%,#174f83 48%,#087e83 100%);
+ box-shadow:0 18px 42px #12376527;
+}
+.welcome-banner:before{content:"";position:absolute;inset:auto auto -150px 35%;width:360px;height:360px;border-radius:50%;background:radial-gradient(circle,#f2bd4b36 0%,#f2bd4b00 70%);pointer-events:none}
+.welcome-banner:after{border-color:#ffffff25;box-shadow:0 0 0 35px #ffffff0a,0 0 0 70px #ffffff07}
+.welcome-copy h1 em{color:#ffd36b}
+.visual-orbit{background:radial-gradient(circle,#ffffff18 0 45%,transparent 46%);box-shadow:0 0 0 14px #ffffff10,0 0 0 30px #ffffff08,0 14px 38px #071b3328}
+.visual-orbit span{filter:drop-shadow(0 5px 12px #0003)}
+.hero-action{background:linear-gradient(110deg,#ffd36d,#f1b83f);box-shadow:0 8px 18px #071b3330}
+.hero-action:hover{background:linear-gradient(110deg,#ffe09a,#f5c85d);transform:translateY(-1px)}
+.section-heading h2{letter-spacing:-.5px}
+.student-access{border-left:4px solid #0c8c88;background:linear-gradient(110deg,#fff 0%,#f4fbfb 100%);box-shadow:0 9px 26px #0c77770c}
+.student-symbol{background:linear-gradient(145deg,#e5f7f4,#eaf2ff);color:#087e83}
+.trust-row span{background:#fff;border:1px solid #e4ebf2;border-radius:10px;padding:10px 12px}
+.staff-access{background:linear-gradient(105deg,#fff8e8,#fff 72%);border-color:#f0dfb8}
+.primary{background:linear-gradient(110deg,#1768a8,#0b7f91);box-shadow:0 5px 13px #1768a81c}
+.primary:hover{filter:brightness(1.06);transform:translateY(-1px)}
+.staff-choice:nth-child(1){border-top:4px solid #e8b849;background:linear-gradient(155deg,#fff,#fffaf0)}
+.staff-choice:nth-child(2){border-top:4px solid #0c8c88;background:linear-gradient(155deg,#fff,#effaf8)}
+.staff-choice-icon{background:linear-gradient(145deg,#eaf2ff,#fff0cf)}
+.auth-intro{background:linear-gradient(145deg,#102f57 0%,#175c8b 58%,#0b8583 100%)}
+.auth-intro:before{content:"";position:absolute;width:230px;height:230px;border-radius:50%;background:#f2bd4b18;right:-75px;top:-95px}
+.auth-card{background:linear-gradient(150deg,#fff,#fbfdff)}
+#dashboard .dash-head{background:linear-gradient(100deg,#fff 0%,#f5f9ff 70%,#fff8e8 100%);border-left-color:#e8b849}
+#dashboard .samagam-sidebar{background:linear-gradient(180deg,#102f57 0%,#15547e 55%,#087e83 100%)}
+#dashboard .samagam-nav button.active{background:linear-gradient(90deg,#ffffff25,#ffffff12);box-shadow:inset 3px 0 #ffd36b}
+#dashboard .samagam-side-brand>span{background:linear-gradient(145deg,#ffffff20,#e8b84930);color:#ffd36b}
+#dashboard .stats .tile:nth-child(4n+1){border-top-color:#e8b849}
+#dashboard .stats .tile:nth-child(4n+2){border-top-color:#0c9b91}
+#dashboard .stats .tile:nth-child(4n+3){border-top-color:#6385d5}
+#dashboard .stats .tile:nth-child(4n){border-top-color:#e87555}
+#dashboard .admin-module{transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}
+#dashboard .admin-module:hover{transform:translateY(-2px);border-color:#b9cde0;box-shadow:0 12px 24px #17375a12}
+#dashboard .data-card{background:linear-gradient(155deg,#fff 0%,#fcfdff 100%)}
+#dashboard .table-wrap th{background:linear-gradient(90deg,#edf4fb,#e9f7f5)}
+#dashboard .status{background:#edf6f4;color:#17665f}
+#dashboard .cbt-clock{background:linear-gradient(145deg,#fff6e5,#fff0c9);border-color:#f0d69c}
+footer{background:linear-gradient(100deg,#fff,#f7faff);border-top:3px solid transparent;border-image:linear-gradient(90deg,#1768a8,#0c9b91,#e8b849) 1}
+button,a,.student-access,.staff-choice{transition:background-color .16s ease,transform .16s ease,box-shadow .16s ease}
+@media(max-width:760px){
+ .welcome-banner{background:linear-gradient(145deg,#102f57 0%,#175b87 58%,#087e83 100%)}
+ .trust-row span{font-size:11px}
+}

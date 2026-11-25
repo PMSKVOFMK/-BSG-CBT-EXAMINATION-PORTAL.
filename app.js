@@ -118,8 +118,37 @@ async function examinerDashboard(root){
   const btn=$("import-candidates");btn.disabled=true;const {data,error}=await db.functions.invoke("admin-create-users",{body:{users}});btn.disabled=false;
   if(error)return toast(error.message);const results=data?.results||[],ok=results.filter(x=>x.success),bad=results.filter(x=>!x.success);const box=$("bulk-created");box.classList.remove("hidden");box.innerHTML="<b>"+ok.length+" created · "+bad.length+" failed</b>"+(ok.length?"<ul>"+ok.map(x=>"<li>"+esc(x.candidate_id||"Candidate ID created")+"</li>").join("")+"</ul>":"")+(bad.length?"<ul>"+bad.map(x=>"<li>"+esc(x.candidate_id||"Row")+": "+esc(x.error)+"</li>").join("")+"</ul>":"");toast("Bulk registration completed.");
  });
-
+ buildExaminerWorkspace(root);
 }
+
+function buildExaminerWorkspace(root){
+ const reg=$("student-users-form")?.closest(".data-card");
+ const bulk=reg?.nextElementSibling?.querySelector("#candidate-xlsx")?reg.nextElementSibling:null;
+ const titles=[...root.querySelectorAll(".section-title")];
+ const examTitle=titles.find(x=>x.textContent.includes("Available examinations for candidate assignment"));
+ const submissionTitle=titles.find(x=>x.textContent.includes("Submitted answer sheets"));
+ const monitoring=[...root.querySelectorAll(".data-card")].find(x=>x.querySelector("h2")?.textContent.includes("Remote examination monitoring"));
+ const examNodes=[];let node=examTitle;
+ if(node){examNodes.push(node);node=node.nextElementSibling;while(node&&node!==submissionTitle){const next=node.nextElementSibling;examNodes.push(node);node=next;}}
+ const submissionNodes=[];if(submissionTitle){submissionNodes.push(submissionTitle);node=submissionTitle.nextElementSibling;while(node&&node!==monitoring&&!node.classList.contains("notice")){const next=node.nextElementSibling;submissionNodes.push(node);node=next;}}
+ const notice=[...root.querySelectorAll(".notice")].at(-1);
+ const shell=document.createElement("div");shell.className="samagam-layout";
+ const sidebar=document.createElement("aside");sidebar.className="samagam-sidebar";
+ sidebar.innerHTML='<div class="samagam-side-brand"><span>⚜</span><div><b>EXAMINER DESK</b><small>Scout / Guide Operations</small></div></div><div class="samagam-nav-label">MY WORKSPACE</div>';
+ const nav=document.createElement("nav");nav.className="samagam-nav";
+ const pages=document.createElement("div");pages.className="samagam-pages";
+ const items=[["registration","♙","Candidate Registration"],["exams","◷","Examination Assignment"],["scripts","▤","Submitted Answer Sheets"],["monitoring","◉","Remote Monitoring"]];
+ const add=(id,title,nodes)=>{const p=document.createElement("section");p.className="samagam-page";p.dataset.page=id;const h=document.createElement("div");h.className="samagam-page-heading";h.innerHTML='<span class="eyebrow">EXAMINATION OPERATIONS</span><h2>'+title+'</h2>';p.appendChild(h);nodes.filter(Boolean).forEach(n=>p.appendChild(n));pages.appendChild(p)};
+ items.forEach(([id,ic,title])=>{const b=document.createElement("button");b.type="button";b.dataset.page=id;b.innerHTML='<span class="nav-icon">'+ic+'</span><span>'+title+'</span><span class="nav-chevron">›</span>';b.addEventListener("click",()=>{pages.querySelectorAll(".samagam-page").forEach(p=>p.classList.toggle("active",p.dataset.page===id));nav.querySelectorAll("button").forEach(x=>x.classList.toggle("active",x===b));applyPortalLanguage()});nav.appendChild(b)});
+ sidebar.appendChild(nav);const foot=document.createElement("div");foot.className="samagam-side-foot";foot.textContent="Section-restricted examiner access";sidebar.appendChild(foot);
+ add("registration","Candidate Registration",[reg,bulk]);
+ add("exams","Examination Assignment",examNodes);
+ add("scripts","Submitted Answer Sheets",submissionNodes);
+ add("monitoring","Remote Monitoring",[monitoring,notice]);
+ shell.appendChild(sidebar);shell.appendChild(pages);root.replaceChildren(shell);
+ const first=nav.querySelector("button");if(first)first.click();
+}
+
 async function saveMark(id){const marks=Number($("mark-"+id).value);if(!Number.isFinite(marks)||marks<0)return toast("Invalid mark.");const {error}=await db.from("answers").update({marks_awarded:marks}).eq("id",id);toast(error?error.message:"Marks saved")}
 async function publishResult(id){const {data:ans,error}=await db.from("answers").select("marks_awarded,auto_marks").eq("submission_id",id);if(error)return toast(error.message);const total=(ans||[]).reduce((n,a)=>n+Number(a.marks_awarded??a.auto_marks??0),0);const {error:e}=await db.from("submissions").update({status:"published",marks_awarded:total,published_at:new Date().toISOString()}).eq("id",id);toast(e?e.message:"Result published: "+total+" marks")}
 async function publishResults(examId){
@@ -397,6 +426,18 @@ async function adminDashboard(root){
  const pdfInput=$("import-paper-pdf");if(pdfInput)pdfInput.addEventListener("change",()=>{parsedQuestionImport=null;$("save-import-btn").disabled=true;$("import-status").textContent="PDF selected. Choose Check & Preview to extract its text."});
 }
 
+
+let portalLanguage="en";
+const portalLabels={overview:"अवलोकन",examiners:"परीक्षक प्रबंधन",candidates:"अभ्यर्थी पंजीकरण",papers:"प्रश्नपत्र कार्यक्षेत्र",schedule:"परीक्षा समय-सारणी",results:"परिणाम और रिपोर्ट",credentials:"आईडी और लॉगिन विवरण",monitoring:"दूरस्थ निगरानी",registration:"उम्मीदवार पंजीकरण",exams:"परीक्षा आवंटन",scripts:"जमा उत्तर पुस्तिकाएँ"};
+function applyPortalLanguage(){
+ const hi=portalLanguage==="hi";
+ const en={overview:"Overview",examiners:"Examiner Management",candidates:"Candidate Register",papers:"Question Paper Studio",schedule:"Exam Scheduling",results:"Results & Reports",credentials:"ID & Credential Centre",monitoring:"Remote Monitoring",registration:"Candidate Registration",exams:"Examination Assignment",scripts:"Submitted Answer Sheets"};
+ document.querySelectorAll(".samagam-nav button").forEach(b=>{const span=b.querySelector("span:nth-child(2)");if(span)span.textContent=hi?portalLabels[b.dataset.page]||span.textContent:en[b.dataset.page]||span.textContent;});
+ document.querySelectorAll(".samagam-page").forEach(p=>{const h=p.querySelector(".samagam-page-heading h2");if(h)h.textContent=hi?portalLabels[p.dataset.page]||h.textContent:en[p.dataset.page]||h.textContent;});
+}
+const languageSelect=$("portal-language");
+if(languageSelect)languageSelect.addEventListener("change",()=>{portalLanguage=languageSelect.value;applyPortalLanguage();toast(portalLanguage==="hi"?"पोर्टल मेनू हिन्दी में दिखाए जा रहे हैं। परीक्षा प्रश्न अंग्रेज़ी में रहेंगे।":"Portal menus are in English. Examination content remains in English.");});
+
 function openAdminModule(id){
  document.querySelectorAll(".samagam-page").forEach(p=>p.classList.toggle("active",p.dataset.page===id));
  document.querySelectorAll(".samagam-nav button").forEach(b=>b.classList.toggle("active",b.dataset.page===id));
@@ -430,7 +471,7 @@ function buildAdminWorkspace(root){
  $("export-examiner-ids").addEventListener("click",()=>exportAccountIds("examiner"));$("export-candidate-ids").addEventListener("click",()=>exportAccountIds("candidate"));
  const monitor=document.createElement("section");monitor.className="data-card";monitor.innerHTML='<h3>Remote examination incident log</h3><p class="muted tiny">Alerts require examiner review. Browser events cannot prove cheating or detect use of a second device.</p><div id="admin-proctoring-content" class="muted">Loading monitoring events…</div>';
  addPage("monitoring","Remote Monitoring",[monitor]);
- shell.appendChild(sidebar);shell.appendChild(pages);root.replaceChildren(shell);openAdminModule("overview");loadAdminProctorEvents();
+ shell.appendChild(sidebar);shell.appendChild(pages);root.replaceChildren(shell);openAdminModule("overview");applyPortalLanguage();loadAdminProctorEvents();
 }
 async function loadAdminProctorEvents(){
  const host=$("admin-proctoring-content");if(!host)return;

@@ -10,7 +10,7 @@ function showLogin(role){currentRole=role;$("welcome").classList.add("hidden");$
 function goHome(){$("auth").classList.add("hidden");$("dashboard").classList.add("hidden");$("welcome").classList.remove("hidden")}
 $("login-form").addEventListener("submit",async e=>{e.preventDefault();if(!ready){$("auth-error").textContent="Database configuration is missing. Reload after setup.";return}const {error}=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});if(error){$("auth-error").textContent=error.message;return}await loadDashboard()});
 $("logout").addEventListener("click",async()=>{if(db)await db.auth.signOut();currentProfile=null;activeExam=null;clearInterval(examTimer);goHome()});
-async function loadDashboard(){const {data:{user}}=await db.auth.getUser();if(!user)return goHome();const {data:profile,error}=await db.from("profiles").select("*").eq("id",user.id).single();if(error||!profile){$("auth-error").textContent="Your portal profile is missing. Contact the administrator.";await db.auth.signOut();return}if(currentRole&&profile.role!==currentRole){$("auth-error").textContent="This account does not have the selected role.";await db.auth.signOut();return}currentProfile=profile;currentRole=profile.role;$("auth").classList.add("hidden");$("welcome").classList.add("hidden");$("dashboard").classList.remove("hidden");$("dash-title").textContent=profile.role==="admin"?"Administrator Dashboard":profile.role==="examiner"?"Examiner Dashboard":"Student Dashboard";const institution=$("dashboard-institution");if(institution)institution.textContent="PM SHRI Kendriya Vidyalaya, Ordnance Factory, Medak, Eddumailaram · School Code: 1525";$("user-email").textContent=profile.full_name+(profile.role==="student"&&profile.candidate_id?" · Candidate ID: "+profile.candidate_id:" · "+user.email)+(profile.role==="examiner"&&profile.examiner_code?" · Examiner ID: "+profile.examiner_code:"");await renderDashboard()}
+async function loadDashboard(){const {data:{user}}=await db.auth.getUser();if(!user)return goHome();const {data:profile,error}=await db.from("profiles").select("*").eq("id",user.id).single();if(error||!profile){$("auth-error").textContent="Your portal profile is missing. Contact the administrator.";await db.auth.signOut();return}if(currentRole&&profile.role!==currentRole){$("auth-error").textContent="This account does not have the selected role.";await db.auth.signOut();return}currentProfile=profile;currentRole=profile.role;$("staff-hub").classList.add("hidden");$("auth").classList.add("hidden");$("welcome").classList.add("hidden");$("dashboard").classList.remove("hidden");$("dash-title").textContent=profile.role==="admin"?"Administrator Dashboard":profile.role==="examiner"?"Examiner Dashboard":"Student Dashboard";const institution=$("dashboard-institution");if(institution)institution.textContent="PM SHRI Kendriya Vidyalaya, Ordnance Factory, Medak, Eddumailaram · School Code: 1525";$("user-email").textContent=profile.full_name+(profile.role==="student"&&profile.candidate_id?" · Candidate ID: "+profile.candidate_id:" · "+user.email)+(profile.role==="examiner"&&profile.examiner_code?" · Examiner ID: "+profile.examiner_code:"");await renderDashboard()}
 async function renderDashboard(){const root=$("dash-content");root.innerHTML='<p class="muted">Loading workspace…</p>';if(currentRole==="admin")return adminDashboard(root);if(currentRole==="examiner")return examinerDashboard(root);return studentDashboard(root)}
 async function adminDashboard(root){
  const [{data:exams},{count:examiners},{count:students},{count:submissions}]=await Promise.all([
@@ -183,9 +183,15 @@ async function setExamStatus(examId,nextStatus){
 }
 
 /* Dedicated staff sign-in routes; student landing remains the public home. */
+function showStaffPortal(){
+ $("welcome").classList.add("hidden");$("auth").classList.add("hidden");$("dashboard").classList.add("hidden");
+ $("staff-hub").classList.remove("hidden");
+}
 function routePortal(){
  const route=location.hash.toLowerCase();
- if(route==="#/staff/examiner"){document.body.dataset.portalRole="examiner";showLogin("examiner")}
+ $("staff-hub").classList.add("hidden");
+ if(route==="#/staff"){document.body.dataset.portalRole="staff";showStaffPortal()}
+ else if(route==="#/staff/examiner"){document.body.dataset.portalRole="examiner";showLogin("examiner")}
  else if(route==="#/staff/super-admin"){document.body.dataset.portalRole="admin";showLogin("admin")}
  else if(route==="#/student"){document.body.dataset.portalRole="student";showLogin("student")}
  else{document.body.dataset.portalRole="home";$("auth").classList.add("hidden");if(!$("dashboard").classList.contains("hidden"))return;$("welcome").classList.remove("hidden")}
@@ -196,6 +202,7 @@ routePortal();
 
 /* Examiner ID authentication and Super Admin account register refresh. */
 function showLogin(role){
+ $("staff-hub").classList.add("hidden");
  currentRole=role;$("welcome").classList.add("hidden");$("dashboard").classList.add("hidden");$("auth").classList.remove("hidden");
  $("auth-title").textContent=role==="admin"?"Super Admin Login":role==="examiner"?"Examiner Login":"Student Login";
  $("auth-sub").textContent=role==="admin"?"Authorised portal administration access.":role==="examiner"?"Enter the unique Examiner ID issued by the Super Admin.":"Sign in to access your assigned examination workspace.";

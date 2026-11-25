@@ -81,3 +81,43 @@ footer{border-top:1px solid #e1e8f0;background:#fff;padding:20px 5% 24px;margin-
 .language-switch select{border:1px solid var(--line);border-radius:8px;padding:7px 8px;background:#fff;color:var(--navy);font:inherit}
 @media(max-width:850px){.samagam-layout{grid-template-columns:1fr}.samagam-sidebar{position:static;min-height:0;padding:10px}.samagam-side-brand{padding-bottom:10px}.samagam-nav{display:flex;overflow-x:auto;padding:8px 0;gap:6px}.samagam-nav button{min-width:max-content;width:auto;grid-template-columns:20px auto;padding:10px}.samagam-nav .nav-chevron,.samagam-nav-label,.samagam-side-foot{display:none}.samagam-page-heading h2{font-size:22px}}
 @media(max-width:520px){.event-row{grid-template-columns:1fr auto}.event-row small{grid-column:1/-1}.id-choice .choice-inline{display:flex}.samagam-nav button{font-size:11px}}
+
+
+/* Unified BSG CBT visual system across all role dashboards */
+:root{--portal-navy:#102f57;--portal-blue:#1c5c91;--portal-gold:#e8b849}
+#dashboard .dash-shell{width:100%}
+#dashboard .dash-head{border-radius:14px;border-left:4px solid var(--portal-gold);box-shadow:0 8px 24px #17375a0a}
+#dashboard .samagam-layout{grid-template-columns:252px minmax(0,1fr);gap:18px}
+#dashboard .samagam-sidebar{background:linear-gradient(180deg,#102f57 0%,#174b78 100%);border:0;border-radius:15px;box-shadow:0 12px 28px #102f5720;color:#fff;padding:16px;min-height:640px}
+#dashboard .samagam-side-brand{border-color:#ffffff24}
+#dashboard .samagam-side-brand>span{background:#ffffff16;color:#f2ca70}
+#dashboard .samagam-side-brand b{color:#fff;letter-spacing:1px}
+#dashboard .samagam-side-brand small{color:#c8d9e9}
+#dashboard .samagam-nav-label{color:#a9bfd4}
+#dashboard .samagam-nav button{color:#d7e3ef;border-radius:9px}
+#dashboard .samagam-nav button:hover{background:#ffffff14;color:#fff}
+#dashboard .samagam-nav button.active{background:#ffffff18;color:#fff;box-shadow:inset 3px 0 #efc45f}
+#dashboard .samagam-nav .nav-chevron{color:#b7cadd}
+#dashboard .samagam-side-foot{border-color:#ffffff24;color:#b8cadd}
+#dashboard .samagam-page-heading{padding:5px 2px 15px}
+#dashboard .samagam-page-heading h2{font-size:26px;letter-spacing:-.3px}
+#dashboard .data-card,#dashboard .tile,#dashboard .exam-card,#dashboard .cbt-main,#dashboard .cbt-side{border-radius:13px;box-shadow:0 7px 22px #17375a0a}
+#dashboard .data-card h3{color:var(--portal-navy)}
+#dashboard .section-title{margin:24px 0 13px}
+#dashboard .primary{background:var(--portal-blue);border-radius:9px}
+#dashboard .primary:hover{background:#124a79}
+#dashboard .secondary{border:1px solid #d7e2ee;background:#f0f5fa;color:#173f69;border-radius:9px}
+#dashboard input:focus,#dashboard select:focus,#dashboard textarea:focus{outline:3px solid #dceaf8;border-color:#4d83b3}
+#dashboard .stats .tile{border-top:3px solid #e8b849}
+#dashboard .table-wrap th{background:#edf3f9;color:#173f69}
+#dashboard .status{border:1px solid #dbe6f0}
+@media(max-width:850px){
+ #dashboard .samagam-layout{grid-template-columns:1fr}
+ #dashboard .samagam-sidebar{min-height:0}
+ #dashboard .samagam-nav button.active{box-shadow:inset 0 -3px #efc45f}
+}
+@media(max-width:520px){
+ #dashboard .dash-head{gap:10px;padding:15px}
+ #dashboard .dash-head h1{font-size:27px}
+ #dashboard .samagam-page-heading h2{font-size:22px}
+}

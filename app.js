@@ -33,6 +33,7 @@ async function adminDashboard(root){
  ${(exams||[]).map(x=>`<div class="exam-card"><div class="exam-top"><div><h3>${esc(x.title)}</h3><p>${esc(x.level)} · ${x.total_marks} marks · ${x.duration_minutes} minutes</p></div><span class="status">${esc(x.status)}</span></div><div class="action-row"><button class="secondary" onclick="addQuestion('${x.id}')">Add MCQ & answer key</button><button class="secondary" onclick="setExamStatus('${x.id}','published')">Open exam</button><button class="secondary" onclick="setExamStatus('${x.id}','closed')">Close exam</button><button class="secondary" onclick="exportResults('${x.id}','csv')">Export CSV</button><button class="secondary" onclick="exportResults('${x.id}','xlsx')">Export Excel</button><button class="secondary" onclick="exportResults('${x.id}','pdf')">Print / PDF</button></div></div>`).join("")||'<p class="muted">No examinations created yet.</p>'}
  <div class="notice">Super Admin creates examiner accounts, candidate examination papers, answer keys and schedules. Examiners register candidates and assign the approved paper.</div>`;
  $("users-form").addEventListener("submit",createUsers);
+ $("create-exam").addEventListener("submit",createExam);
 }
 async function createUsers(e){e.preventDefault();const lines=$("bulk-users").value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);const users=[];for(const line of lines){const p=line.split(",").map(x=>x.trim());if(p.length!==4){toast("Each row must be: Full Name,email,password,examiner");return}users.push({full_name:p[0],email:p[1],password:p[2],role:p[3].toLowerCase()})}if(!users.length)return toast("Enter at least one examiner account.");const {data,error}=await db.functions.invoke("admin-create-users",{body:{users}});if(error)return toast(error.message);const ok=data?.created||0;const failed=(data?.results||[]).filter(x=>!x.success);toast(ok+" examiner account(s) created; "+failed.length+" failed.");if(failed.length)alert(failed.map(x=>x.email+": "+x.error).join("\n"));$("bulk-users").value="";renderDashboard()}
 async function studentDashboard(root){const {data:as,error}=await db.from("exam_assignments").select("id,exam_id,exams(*)").eq("student_id",currentProfile.id);if(error){root.textContent=error.message;return}const {data:subs}=await db.from("submissions").select("exam_id,status,marks_awarded").eq("student_id",currentProfile.id);root.innerHTML='<div class="section-title"><h2>My examinations</h2></div>'+(as||[]).map(a=>{const x=a.exams||{},s=(subs||[]).find(z=>z.exam_id===x.id);return `<div class="exam-card"><div class="exam-top"><div><h3>${esc(x.title)}</h3><p>${esc(x.level)} · ${x.total_marks} marks · ${x.duration_minutes} minutes</p></div><span class="status">${esc(s?.status||x.status)}</span></div>${s?(s.status==="published"?"<p>Result: "+s.marks_awarded+" marks</p>":"<p>Submitted. Awaiting examiner review and result publication.</p>"):x.status==="published"?'<button onclick="startExam(\''+x.id+'\')">Start examination</button>':'<p class="muted">This examination is not open yet.</p>'}</div>`}).join("")||'<div class="data-card">No examinations assigned yet.</div>'}
@@ -87,18 +88,18 @@ async function exportResults(examId,format){const {data:subs,error}=await db.fro
 async function createExam(e){
   e.preventDefault();
   const fd=new FormData(e.currentTarget);
-  const title=String(fd.get("title")||"").trim();
   const level=String(fd.get("level")||"").trim();
-  const total_marks=Number(fd.get("total_marks"));
-  const duration_minutes=Number(fd.get("duration_minutes"));
+  const title=level+" Examination";
+  const total_marks=100;
+  const duration_minutes=50;
   const toIso=v=>v?new Date(v).toISOString():null;
   const starts_at=toIso(fd.get("starts_at"));
   const ends_at=toIso(fd.get("ends_at"));
-  if(!title||!level||!Number.isFinite(total_marks)||total_marks<=0||!Number.isFinite(duration_minutes)||duration_minutes<=0){toast("Enter a valid title, marks and duration.");return}
+  if(!["Pravesh","Pratham Sopan","Pravesh + Pratham Sopan","Dwitiya Sopan"].includes(level)){toast("Select a valid examination level.");return}
   if(starts_at&&ends_at&&new Date(ends_at)<=new Date(starts_at)){toast("End date/time must be after the start date/time.");return}
   const {data,error}=await db.from("exams").insert({title,level,total_marks,duration_minutes,starts_at,ends_at,instructions:String(fd.get("instructions")||""),status:"draft",created_by:currentProfile.id}).select("id").single();
   if(error){toast(error.message);return}
-  toast("Draft examination created. Add questions and answer keys next.");
+  toast("100-mark, 50-minute draft created. Add exactly 50 MCQs, each worth 2 marks.");
   await renderDashboard();
 }
 async function addQuestion(examId){
@@ -107,23 +108,20 @@ async function addQuestion(examId){
   if(exam.status!=="draft")return toast("Questions can only be changed while the examination is a draft.");
   const question_text=prompt("Enter the question text:");
   if(!question_text?.trim())return;
-  const kind=(prompt("Question type: enter MCQ, SHORT, LONG or DRAWING","MCQ")||"MCQ").trim().toLowerCase();
-  const question_type=kind==="mcq"?"mcq":kind==="short"?"short":kind==="long"?"long":kind==="drawing"?"drawing":null;
-  if(!question_type)return toast("Unsupported question type.");
-  const marks=Number(prompt("Marks for this question:", "1"));
-  if(!Number.isFinite(marks)||marks<=0)return toast("Enter a positive mark value.");
+  const {count:existingCount}=await db.from("questions").select("*",{count:"exact",head:true}).eq("exam_id",examId);
+  if((existingCount||0)>=50)return toast("This paper already has 50 questions.");
+  const question_type="mcq";
+  const marks=2;
   let options=null,correct="";
-  if(question_type==="mcq"){
+  {
     const raw=prompt("Enter exactly four options separated by | (vertical bar):","Option A|Option B|Option C|Option D");
     options=(raw||"").split("|").map(s=>s.trim()).filter(Boolean);
     if(options.length!==4||new Set(options).size!==4)return toast("MCQ requires four different options separated by |.");
     correct=prompt("Enter the exact correct option text:",options[0])||"";
     if(!options.includes(correct.trim()))return toast("Correct answer must exactly match one of the four options.");
     correct=correct.trim();
-  }else if(question_type==="short"||question_type==="long"){
-    correct=prompt("Optional accepted answer (can be left blank; examiner will mark):","")||"";
   }
-  const {count}=await db.from("questions").select("*",{count:"exact",head:true}).eq("exam_id",examId);
+  const count=existingCount;
   const position=(count||0)+1;
   const {data:q,error}=await db.from("questions").insert({exam_id:examId,question_text:question_text.trim(),question_type,marks,options,position}).select("id").single();
   if(error)return toast(error.message);
@@ -155,9 +153,10 @@ async function setExamStatus(examId,nextStatus){
   if(nextStatus==="published"){
     const {data:qs,error:qe}=await db.from("questions").select("id,marks,question_type").eq("exam_id",examId);
     if(qe)return toast(qe.message);
-    if(!qs?.length)return toast("Add questions before opening this examination.");
+    if(qs?.length!==50)return toast("This NHQ-format paper must contain exactly 50 MCQs. Current count: "+(qs?.length||0)+".");
+    if(qs.some(q=>q.question_type!=="mcq"||Number(q.marks)!==2))return toast("Every question must be MCQ type and carry exactly 2 marks.");
     const sum=qs.reduce((n,q)=>n+Number(q.marks||0),0);
-    if(Math.abs(sum-Number(exam.total_marks))>0.001)return toast("Question marks total "+sum+" but exam total is "+exam.total_marks+". Correct the totals before opening.");
+    if(sum!==100||Number(exam.total_marks)!==100||Number(exam.duration_minutes)!==50)return toast("NHQ format required: 50 MCQs × 2 marks = 100 marks, 50 minutes.");
     if(exam.starts_at&&exam.ends_at&&new Date(exam.ends_at)<=new Date(exam.starts_at))return toast("Correct the examination schedule first.");
     /* MCQ keys are written securely at question creation; never overwrite them during publication. */
     if(!confirm("Open this examination for assigned students? Once opened, question edits are locked."))return;

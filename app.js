@@ -48,7 +48,21 @@ async function createUsers(e){
  toast(ok.length+" examiner account(s) created; "+failed.length+" failed.");
  $("bulk-users").value="";
 }
-async function studentDashboard(root){const {data:as,error}=await db.from("exam_assignments").select("id,exam_id,exams(*)").eq("student_id",currentProfile.id);if(error){root.textContent=error.message;return}const {data:subs}=await db.from("submissions").select("exam_id,status,marks_awarded").eq("student_id",currentProfile.id);root.innerHTML='<div class="section-title"><h2>My examinations</h2></div>'+(as||[]).map(a=>{const x=a.exams||{},s=(subs||[]).find(z=>z.exam_id===x.id);return `<div class="exam-card"><div class="exam-top"><div><h3>${esc(x.title)}</h3><p>${esc(x.level)} · ${x.total_marks} marks · ${x.duration_minutes} minutes</p></div><span class="status">${esc(s?.status||x.status)}</span></div>${s?(s.status==="published"?"<p>Result: "+s.marks_awarded+" marks</p>":"<p>Submitted. Awaiting examiner review and result publication.</p>"):x.status==="published"?'<button onclick="startExam(\''+x.id+'\')">Start examination</button>':'<p class="muted">This examination is not open yet.</p>'}</div>`}).join("")||'<div class="data-card">No examinations assigned yet.</div>'}
+function resultCategory(marks){const n=Number(marks)||0;return n>=90?'First Class':n>=70?'Second Class':n>=50?'Third Class':'Fail'}
+async function studentDashboard(root){
+ const {data:as,error}=await db.from('exam_assignments').select('id,exam_id,exams(*)').eq('student_id',currentProfile.id);
+ if(error){root.textContent=error.message;return}
+ const {data:subs,error:se}=await db.from('submissions').select('exam_id,status,marks_awarded,published_at').eq('student_id',currentProfile.id);
+ if(se){root.textContent=se.message;return}
+ root.innerHTML='<div class="section-title"><h2>My examinations</h2></div>'+(as||[]).map(a=>{
+  const x=a.exams||{},s=(subs||[]).find(z=>z.exam_id===x.id);let result='';
+  if(s&&s.status==='published'){const m=Number(s.marks_awarded)||0;result='<div class="notice"><b>Result published</b><p>'+m+' / '+x.total_marks+' marks · '+resultCategory(m)+' · '+(m>=50?'PASS':'NOT QUALIFIED')+'</p></div>'}
+  else if(s){result='<p class="muted">Your submission is recorded. The result has not yet been published.</p>'}
+  else if(x.status==='published'){result='<button onclick="startExam(\''+x.id+'\')">Start examination</button>'}
+  else{result='<p class="muted">This examination is not open yet.</p>'}
+  return '<div class="exam-card"><div class="exam-top"><div><h3>'+esc(x.title)+'</h3><p>'+esc(x.level)+' · '+x.total_marks+' marks · '+x.duration_minutes+' minutes</p></div><span class="status">'+esc(s?s.status:x.status)+'</span></div>'+result+'</div>'
+ }).join('')||'<div class="data-card">No examinations assigned yet.</div>';
+}
 async function startExam(id){const {data:started,error:se}=await db.rpc("start_exam",{p_exam_id:id});if(se)return toast(se.message);const {data:exam,error}=await db.from("exams").select("*").eq("id",id).single();const {data:questions,error:qe}=await db.from("questions").select("*").eq("exam_id",id).order("position");if(error||qe||!questions?.length)return toast("Questions are not available yet.");activeExam={exam,questions,startedAt:new Date(started).getTime()};const root=$("dash-content");root.innerHTML=`<div class="exam-top"><div><span class="eyebrow">EXAM IN PROGRESS</span><h2>${esc(exam.title)}</h2><p>${exam.total_marks} marks · ${exam.duration_minutes} minutes</p></div><div class="status" id="timer"></div></div><div class="notice">Your start time is recorded by the server. Do not close the page before submitting. If the exam window or duration expires, the server will reject late submissions.</div><form id="exam-form">${questions.map((q,i)=>`<div class="question"><b>Q${i+1}. ${esc(q.question_text)}</b><p class="muted tiny">${q.marks} marks</p>${q.question_type==="mcq"?(q.options||[]).map(o=>`<label><input type="radio" name="q_${q.id}" value="${esc(o)}"> ${esc(o)}</label>`).join(""):`<textarea class="answer-input" name="q_${q.id}" placeholder="Type your answer…"></textarea>`}</div>`).join("")}<button class="primary">Submit examination</button></form>`;const tick=()=>{const left=Math.max(0,Math.ceil((activeExam.startedAt+exam.duration_minutes*60000-Date.now())/1000));$("timer").textContent=Math.floor(left/60)+":"+String(left%60).padStart(2,"0");if(left<=0){clearInterval(examTimer);submitExam(true)}};tick();examTimer=setInterval(tick,1000);$("exam-form").addEventListener("submit",e=>{e.preventDefault();submitExam(false)})}
 async function submitExam(auto){if(!activeExam)return;clearInterval(examTimer);const form=$("exam-form");if(!form)return;const fd=new FormData(form);const answers=activeExam.questions.map(q=>({question_id:q.id,answer_text:String(fd.get("q_"+q.id)||"")}));const {error}=await db.rpc("submit_exam",{p_exam_id:activeExam.exam.id,p_answers:answers});activeExam=null;if(error){toast(error.message);return}toast(auto?"Time expired. Submission received if within the server deadline.":"Examination submitted successfully.");await studentDashboard($("dash-content"))}
 async function examinerDashboard(root){
@@ -322,6 +336,7 @@ function captureAnswer(){
   if(selected)activeExam.responses[q.id]=selected.value;
   else if(typed)activeExam.responses[q.id]=typed.value;
 }
+function shuffledCopy(items){const out=[...items];for(let i=out.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[out[i],out[j]]=[out[j],out[i]]}return out}
 async function startExam(id){
   const {data:exam,error:ee}=await db.from("exams").select("*").eq("id",id).single();
   if(ee||!exam)return toast(ee?.message||"Examination not found.");
@@ -331,7 +346,8 @@ async function startExam(id){
   if(se)return toast(se.message);
   const {data:questions,error:qe}=await db.from("questions").select("*").eq("exam_id",id).order("position");
   if(qe||!questions?.length)return toast(qe?.message||"Questions are not available.");
-  activeExam={exam,questions,startedAt:new Date(started).getTime(),responses:{},review:new Set(),currentIndex:0};
+  const randomized=shuffledCopy(questions.map(q=>({...q,options:Array.isArray(q.options)?shuffledCopy(q.options):q.options})));
+  activeExam={exam,questions:randomized,startedAt:new Date(started).getTime(),responses:{},review:new Set(),currentIndex:0};
   paintQuestion();
   const tick=()=>{
     if(!activeExam)return;

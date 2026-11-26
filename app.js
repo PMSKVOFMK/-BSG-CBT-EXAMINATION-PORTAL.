@@ -95,7 +95,7 @@ function buildAdminWorkspace(root){
  add("reports","Results & Exports",[examList.cloneNode(true)]);
  shell.appendChild(sidebar);shell.appendChild(pages);root.replaceChildren(shell);const first=nav.querySelector("button");if(first)first.click();
 }
-function resultCategory(marks){const n=Number(marks)||0;return n>=90?'First Class':n>=70?'Second Class':n>=50?'Third Class':'Fail'}
+function resultCategory(marks,totalMarks=100){const pct=Number(totalMarks)>0?(Number(marks)||0)/Number(totalMarks)*100:0;return pct>=90?'First Class':pct>=70?'Second Class':pct>=50?'Third Class':'Fail'}
 async function studentDashboard(root){
  const {data:as,error}=await db.from('exam_assignments').select('id,exam_id,exams(*)').eq('student_id',currentProfile.id);
  if(error){root.textContent=error.message;return}
@@ -103,7 +103,7 @@ async function studentDashboard(root){
  if(se){root.textContent=se.message;return}
  root.innerHTML='<div class="section-title"><h2>My examinations</h2></div>'+(as||[]).map(a=>{
   const x=a.exams||{},s=(subs||[]).find(z=>z.exam_id===x.id);let result='';
-  if(s&&s.status==='published'){const m=Number(s.marks_awarded)||0;result='<div class="notice"><b>Result published</b><p>'+m+' / '+x.total_marks+' marks · '+resultCategory(m)+' · '+(m>=50?'PASS':'NOT QUALIFIED')+'</p></div>'}
+  if(s&&s.status==='published'){const m=Number(s.marks_awarded)||0;result='<div class="notice"><b>Result published</b><p>'+m+' / '+x.total_marks+' marks · '+resultCategory(m,x.total_marks)+' · '+(m>=Number(x.total_marks)*0.5?'PASS':'NOT QUALIFIED')+'</p></div>'}
   else if(s){result='<p class="muted">Your submission is recorded. The result has not yet been published.</p>'}
   else if(x.status==='published'){result='<button onclick="startExam(\''+x.id+'\')">Start examination</button>'}
   else{result='<p class="muted">This examination is not open yet.</p>'}
@@ -111,6 +111,38 @@ async function studentDashboard(root){
  }).join('')||'<div class="data-card">No examinations assigned yet.</div>';
  buildStudentWorkspace(root);
 }
+
+function buildStudentWorkspace(root){
+ const examContent=document.createElement("section");
+ examContent.className="data-card student-exam-content";
+ while(root.firstChild)examContent.appendChild(root.firstChild);
+ const examCards=[...examContent.querySelectorAll(".exam-card")];
+ const assigned=examCards.length;
+ const open=examCards.filter(c=>/published/i.test(c.querySelector(".status")?.textContent||"")).length;
+ const completed=examCards.filter(c=>/submitted|reviewed|published/i.test(c.querySelector(".status")?.textContent||"")).length;
+ const stats=document.createElement("div");stats.className="stats";
+ stats.innerHTML='<div class="tile"><strong>'+assigned+'</strong><span>Assigned examinations</span></div><div class="tile"><strong>'+open+'</strong><span>Currently open</span></div><div class="tile"><strong>'+completed+'</strong><span>Submitted / completed</span></div><div class="tile"><strong>'+esc((currentProfile.section||"").toUpperCase())+'</strong><span>Scout / Guide section</span></div>';
+ const profile=document.createElement("section");profile.className="data-card";
+ profile.innerHTML='<div class="card-kicker">CANDIDATE PROFILE</div><h3>My registered details</h3><div class="credential-row"><span>Full name</span><b>'+esc(currentProfile.full_name||"")+'</b></div><div class="credential-row"><span>Candidate ID</span><b>'+esc(currentProfile.candidate_id||"—")+'</b></div><div class="credential-row"><span>Section</span><b>'+esc((currentProfile.section||"").toUpperCase())+'</b></div><div class="credential-row"><span>Scout / Guide Number</span><b>'+esc(currentProfile.scout_guide_number||"—")+'</b></div><div class="credential-row"><span>Progression level</span><b>'+esc(currentProfile.candidate_level||"—")+'</b></div><div class="credential-row"><span>Father name</span><b>'+esc(currentProfile.father_name||"—")+'</b></div><p class="muted tiny">Your BSG UID is used as your initial password. It is not displayed in your profile.</p>';
+ const help=document.createElement("section");help.className="data-card";
+ help.innerHTML='<div class="card-kicker">CANDIDATE HELP DESK</div><h3>Before you start an examination</h3><ul class="student-help-list"><li>Open My Examinations and check the examination status and schedule.</li><li>Download or print your admit card before the examination.</li><li>Use a stable internet connection and keep your device charged.</li><li>Read the instructions carefully before starting. The timer begins when you confirm Start.</li><li>Use the question palette to move between questions. Your answers are saved to Supabase while you work.</li><li>Submit once you have reviewed your answers. A submitted examination cannot be restarted.</li></ul>';
+ const shell=document.createElement("div");shell.className="samagam-layout";
+ const sidebar=document.createElement("aside");sidebar.className="samagam-sidebar";
+ sidebar.innerHTML='<div class="samagam-side-brand"><span>⚜</span><div><b>STUDENT WORKSPACE</b><small>Candidate Examination Desk</small></div></div><div class="samagam-nav-label">MY PORTAL</div>';
+ const nav=document.createElement("nav");nav.className="samagam-nav";
+ const pages=document.createElement("div");pages.className="samagam-pages";
+ const addPage=(id,title,nodes)=>{const page=document.createElement("section");page.className="samagam-page";page.dataset.page=id;const head=document.createElement("div");head.className="samagam-page-heading";head.innerHTML='<span class="eyebrow">BHARAT SCOUTS &amp; GUIDES · CANDIDATE PORTAL</span><h2>'+title+'</h2>';page.appendChild(head);nodes.filter(Boolean).forEach(n=>page.appendChild(n));pages.appendChild(page)};
+ const items=[["overview","⌂","Overview"],["myexams","▤","My Examinations"],["profile","♙","My Profile"],["help","?","Instructions"]];
+ items.forEach(([id,icon,title])=>{const b=document.createElement("button");b.type="button";b.dataset.page=id;b.dataset.title=title;b.innerHTML='<span class="nav-icon">'+icon+'</span><span>'+title+'</span><span class="nav-chevron">›</span>';b.addEventListener("click",()=>openAdminModule(id));nav.appendChild(b)});
+ sidebar.appendChild(nav);const foot=document.createElement("div");foot.className="samagam-side-foot";foot.textContent="Candidate access · Your own examinations only";sidebar.appendChild(foot);
+ const welcome=document.createElement("section");welcome.className="data-card";welcome.innerHTML='<div class="card-kicker">WELCOME TO YOUR EXAMINATION DESK</div><h3>Welcome, '+esc(currentProfile.full_name||"Candidate")+'</h3><p class="muted">Your assigned examinations, admit cards and published results appear in My Examinations.</p>';
+ addPage("overview","Candidate Overview",[welcome,stats]);
+ addPage("myexams","My Examinations",[examContent]);
+ addPage("profile","My Profile",[profile]);
+ addPage("help","Examination Instructions",[help]);
+ shell.appendChild(sidebar);shell.appendChild(pages);root.replaceChildren(shell);openAdminModule("overview");
+}
+
 async function printAdmitCard(examId){
  const w=window.open("","_blank");if(!w)return toast("Allow pop-ups to print the admit card.");
  const {data:exam,error}=await db.from("exams").select("*").eq("id",examId).single();

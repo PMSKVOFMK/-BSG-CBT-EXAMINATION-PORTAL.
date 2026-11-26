@@ -243,3 +243,6 @@ button,a,.student-access,.staff-choice{transition:background-color .16s ease,tra
 .question-editor-key label{display:flex;align-items:center;gap:6px;font-weight:800;color:#344b64}
 .question-editor-key input{width:auto;margin:0}
 @media(max-width:600px){.portal-modal{padding:8px;align-items:end}.portal-modal-card{max-height:94dvh;border-radius:16px;padding:16px}.portal-modal-head h2{font-size:20px}.question-editor-options{grid-template-columns:minmax(0,1fr);gap:8px}.portal-modal-card .action-row{display:flex;flex-direction:column-reverse;align-items:stretch}.portal-modal-card .action-row button{width:100%}}
+
+/* Candidate dashboard refinements */
+.student-help-list{margin:12px 0 0;padding-left:22px;color:#42566d;font-size:13px;line-height:1.85}.student-help-list li{padding:3px 0}.student-exam-content{padding:0;border:0;background:transparent;box-shadow:none}.student-exam-content>.section-title{margin:0 0 14px}.student-exam-content>.exam-card{margin:0 0 13px}

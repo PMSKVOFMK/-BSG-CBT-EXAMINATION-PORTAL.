@@ -175,3 +175,53 @@ button,a,.student-access,.staff-choice{transition:background-color .16s ease,tra
  .welcome-banner{background:linear-gradient(145deg,#102f57 0%,#175b87 58%,#087e83 100%)}
  .trust-row span{font-size:11px}
 }
+
+
+/* Responsive dashboard: dedicated phone layout, tablet layout and desktop layout */
+#dashboard, #dashboard *{box-sizing:border-box}
+#dashboard{width:100%;min-width:0}
+#dashboard .dash-shell,#dashboard .samagam-layout,#dashboard .samagam-pages,#dashboard .samagam-page{min-width:0;max-width:100%}
+@media (max-width: 900px){
+  #dashboard .samagam-layout{display:grid;grid-template-columns:minmax(0,1fr)!important;gap:12px;margin:12px 0 22px}
+  #dashboard .samagam-sidebar{position:relative;top:auto;min-height:0;height:auto;padding:10px;border-radius:13px}
+  #dashboard .samagam-side-brand{padding:5px 6px 9px}
+  #dashboard .samagam-nav{display:flex;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;gap:6px;padding:8px 1px 5px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+  #dashboard .samagam-nav button{flex:0 0 auto;min-width:max-content;width:auto;grid-template-columns:18px auto;padding:10px 12px;font-size:12px;white-space:nowrap}
+  #dashboard .samagam-nav .nav-chevron,#dashboard .samagam-nav-label,#dashboard .samagam-side-foot{display:none}
+  #dashboard .samagam-page-heading{padding:5px 2px 10px}
+  #dashboard .samagam-page-heading h2{font-size:22px}
+  #dashboard .admin-module-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #dashboard .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #dashboard .data-card{min-width:0;padding:16px}
+  #dashboard .table-wrap{max-width:100%;overflow-x:auto}
+}
+@media (max-width: 600px){
+  #dashboard{padding-left:0;padding-right:0}
+  #dashboard .dash-head{display:flex;flex-wrap:wrap;align-items:flex-start;gap:10px;padding:14px;border-radius:12px}
+  #dashboard .dash-head h1{font-size:23px;line-height:1.2}
+  #dashboard .dash-head p{font-size:12px}
+  #dashboard .samagam-layout{grid-template-columns:minmax(0,1fr)!important;margin:10px 0 18px;gap:10px}
+  #dashboard .samagam-sidebar{width:100%;padding:9px}
+  #dashboard .samagam-side-brand b{font-size:10px}
+  #dashboard .samagam-nav button{font-size:11px;padding:9px 10px}
+  #dashboard .samagam-page-heading h2{font-size:20px}
+  #dashboard .admin-module-grid{grid-template-columns:minmax(0,1fr)}
+  #dashboard .admin-module{padding:13px}
+  #dashboard .stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  #dashboard .stats .tile{padding:12px;min-width:0}
+  #dashboard .stats .tile strong{font-size:22px}
+  #dashboard .data-card{padding:13px;margin-left:0;margin-right:0}
+  #dashboard .data-card h2,#dashboard .data-card h3{font-size:16px}
+  #dashboard .form-grid,#dashboard .admin-grid{grid-template-columns:minmax(0,1fr)!important}
+  #dashboard input,#dashboard select,#dashboard textarea{max-width:100%;min-width:0}
+  #dashboard .action-row{display:flex;flex-direction:column;align-items:stretch}
+  #dashboard .action-row button,#dashboard button.primary,#dashboard button.secondary{max-width:100%}
+  #dashboard .table-wrap table{min-width:620px}
+  #dashboard .event-row{grid-template-columns:minmax(0,1fr);gap:5px}
+  #dashboard .event-row small{grid-column:auto}
+}
+@media (max-width: 380px){
+  #dashboard .stats{grid-template-columns:minmax(0,1fr)}
+  #dashboard .dash-head h1{font-size:21px}
+  #dashboard .samagam-nav button{padding:8px 9px}
+}

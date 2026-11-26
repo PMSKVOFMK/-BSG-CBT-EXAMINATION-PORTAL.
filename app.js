@@ -233,36 +233,36 @@ async function createExam(e){
   await renderDashboard();
 }
 async function addQuestion(examId){
-  const {data:exam,error:ee}=await db.from("exams").select("id,title,total_marks,status").eq("id",examId).single();
+  const {data:exam,error:ee}=await db.from("exams").select("id,title,status").eq("id",examId).single();
   if(ee||!exam)return toast(ee?.message||"Examination not found.");
   if(exam.status!=="draft")return toast("Questions can only be changed while the examination is a draft.");
-  const question_text=prompt("Enter the question text:");
-  if(!question_text?.trim())return;
-  const {count:existingCount}=await db.from("questions").select("*",{count:"exact",head:true}).eq("exam_id",examId);
-  if((existingCount||0)>=50)return toast("This paper already has 50 questions.");
-  const question_type="mcq";
-  const marks=2;
-  let options=null,correct="";
-  {
-    const raw=prompt("Enter exactly four options separated by | (vertical bar):","Option A|Option B|Option C|Option D");
-    options=(raw||"").split("|").map(s=>s.trim()).filter(Boolean);
-    if(options.length!==4||new Set(options).size!==4)return toast("MCQ requires four different options separated by |.");
-    correct=prompt("Enter the exact correct option text:",options[0])||"";
-    if(!options.includes(correct.trim()))return toast("Correct answer must exactly match one of the four options.");
-    correct=correct.trim();
-  }
-  const count=existingCount;
-  const position=(count||0)+1;
-  const {data:q,error}=await db.from("questions").insert({exam_id:examId,question_text:question_text.trim(),question_type,marks,options,position}).select("id").single();
-  if(error)return toast(error.message);
-  if(correct){
-    const {error:keyError}=await db.rpc("set_question_key",{p_question_id:q.id,p_correct_answer:correct,p_accepted_answers:[]});
-    if(keyError){toast("Question saved, but answer key could not be saved: "+keyError.message);return}
-  }else if(question_type==="mcq"){
-    toast("Question saved but key missing. Do not publish until its key is added.");return;
-  }
-  toast("Question and answer key saved.");
-  await renderDashboard();
+  const {count,error:ce}=await db.from("questions").select("id",{count:"exact",head:true}).eq("exam_id",examId);
+  if(ce)return toast(ce.message);
+  if((count||0)>=50)return toast("This paper already has 50 questions.");
+  document.getElementById("question-editor-modal")?.remove();
+  const modal=document.createElement("div");modal.id="question-editor-modal";modal.className="portal-modal";
+  modal.innerHTML='<div class="portal-modal-card" role="dialog" aria-modal="true" aria-labelledby="question-editor-title"><div class="portal-modal-head"><div><span class="eyebrow">QUESTION PAPER STUDIO</span><h2 id="question-editor-title">Add MCQ & Answer Key</h2><p class="muted tiny">'+esc(exam.title)+' · Question '+((count||0)+1)+' of 50 · 2 marks</p></div><button type="button" class="secondary" id="question-editor-close" aria-label="Close">✕</button></div><form id="question-editor-form"><label>Question text<textarea name="question_text" rows="3" required maxlength="1500" placeholder="Type the complete question here"></textarea></label><div class="question-editor-options"><label>Option A<input name="option_a" required maxlength="500" placeholder="Enter option A"></label><label>Option B<input name="option_b" required maxlength="500" placeholder="Enter option B"></label><label>Option C<input name="option_c" required maxlength="500" placeholder="Enter option C"></label><label>Option D<input name="option_d" required maxlength="500" placeholder="Enter option D"></label></div><fieldset class="question-editor-key"><legend>Select the correct answer</legend><label><input type="radio" name="correct" value="A" required> A</label><label><input type="radio" name="correct" value="B"> B</label><label><input type="radio" name="correct" value="C"> C</label><label><input type="radio" name="correct" value="D"> D</label></fieldset><div class="action-row"><button type="button" class="secondary" id="question-editor-cancel">Cancel</button><button type="submit" class="primary">Save Question & Answer Key</button></div><p class="muted tiny">The answer key is stored separately and is never shown to candidates.</p></form></div>';
+  document.body.appendChild(modal);
+  const close=()=>modal.remove();
+  modal.addEventListener("click",e=>{if(e.target===modal)close()});
+  modal.querySelector("#question-editor-close").addEventListener("click",close);
+  modal.querySelector("#question-editor-cancel").addEventListener("click",close);
+  const form=modal.querySelector("#question-editor-form");
+  form.addEventListener("submit",async e=>{
+    e.preventDefault();const fd=new FormData(form);
+    const questionText=String(fd.get("question_text")||"").trim();
+    const options=["a","b","c","d"].map(k=>String(fd.get("option_"+k)||"").trim());
+    const key=String(fd.get("correct")||"");
+    if(!questionText||options.some(x=>!x)||new Set(options.map(x=>x.toLocaleLowerCase())).size!==4)return toast("Enter the question and four different options.");
+    if(!["A","B","C","D"].includes(key))return toast("Select the correct answer.");
+    const submit=form.querySelector('button[type="submit"]');submit.disabled=true;submit.textContent="Saving securely…";
+    const {data:q,error:ie}=await db.from("questions").insert({exam_id:examId,question_text:questionText,question_type:"mcq",marks:2,options,position:(count||0)+1}).select("id").single();
+    if(ie){submit.disabled=false;submit.textContent="Save Question & Answer Key";return toast(ie.message)}
+    const {error:ke}=await db.rpc("set_question_key",{p_question_id:q.id,p_correct_answer:options["ABCD".indexOf(key)],p_accepted_answers:[]});
+    if(ke){await db.from("questions").delete().eq("id",q.id);submit.disabled=false;submit.textContent="Save Question & Answer Key";return toast("Answer key could not be saved. The question was rolled back: "+ke.message)}
+    close();toast("Question "+((count||0)+1)+" and its private answer key were saved.");await renderDashboard();
+  });
+  form.querySelector("textarea").focus();
 }
 
 let proctorListenersBound=false;

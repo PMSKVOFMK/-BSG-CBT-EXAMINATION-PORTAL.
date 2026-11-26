@@ -246,3 +246,51 @@ button,a,.student-access,.staff-choice{transition:background-color .16s ease,tra
 
 /* Candidate dashboard refinements */
 .student-help-list{margin:12px 0 0;padding-left:22px;color:#42566d;font-size:13px;line-height:1.85}.student-help-list li{padding:3px 0}.student-exam-content{padding:0;border:0;background:transparent;box-shadow:none}.student-exam-content>.section-title{margin:0 0 14px}.student-exam-content>.exam-card{margin:0 0 13px}
+
+
+/* Samagam-style consistency pass for every portal role and screen */
+:root{--samagam-deep:#102f57;--samagam-mid:#175783;--samagam-teal:#087f82;--samagam-gold:#e8b849}
+#dashboard .samagam-page .data-card,#dashboard .samagam-page .exam-card,
+#dashboard .samagam-page .tile,#dashboard .samagam-page .admin-module{
+ border:1px solid #dfe7f0;border-radius:14px;background:#fff;
+}
+#dashboard .samagam-page .data-card{padding:20px}
+#dashboard .samagam-page .data-card h2,
+#dashboard .samagam-page .data-card h3{color:var(--samagam-deep);letter-spacing:-.2px}
+#dashboard .samagam-page .card-kicker{color:#987222}
+#dashboard .samagam-page .form-grid label,
+#dashboard .samagam-page label{color:#344b64}
+#dashboard .samagam-page input,
+#dashboard .samagam-page select,
+#dashboard .samagam-page textarea{border:1px solid #cbd7e4;border-radius:9px;background:#fff}
+#dashboard .samagam-page input:focus,
+#dashboard .samagam-page select:focus,
+#dashboard .samagam-page textarea:focus{outline:3px solid #dceaf8;border-color:#4d83b3}
+#dashboard .samagam-page .table-wrap th{background:#edf4f9;color:#244b70}
+#dashboard .samagam-page .table-wrap td{color:#354b63}
+#dashboard .samagam-page .exam-card{padding:18px}
+#dashboard .samagam-page .exam-top h3{font-size:16px}
+#dashboard .samagam-page .status{font-weight:850;text-transform:capitalize}
+#dashboard .cbt-head{border-top:3px solid var(--samagam-gold)}
+#dashboard .cbt-main,#dashboard .cbt-side{box-shadow:0 8px 24px #17375a0a}
+#dashboard .cbt-question h3{color:#1a3552}
+#dashboard .cbt-option:hover{border-color:#8eabc7;background:#f7fbff}
+#dashboard .cbt-option:has(input:checked){border-color:#2779a8;background:#eef7fc}
+#dashboard .cbt-bottom .primary{background:linear-gradient(110deg,var(--samagam-mid),var(--samagam-teal))}
+#auth .auth-layout{border-radius:18px;box-shadow:0 18px 44px #102f5712}
+#auth .auth-intro{background:linear-gradient(145deg,var(--samagam-deep),var(--samagam-mid) 62%,var(--samagam-teal))}
+#auth .auth-card{background:#fff}
+#auth .auth-card .primary{background:linear-gradient(110deg,var(--samagam-mid),var(--samagam-teal))}
+.staff-choice-grid .staff-choice{border-radius:15px;box-shadow:0 9px 25px #17375a0b}
+.staff-choice-link{background:linear-gradient(110deg,var(--samagam-mid),var(--samagam-teal));color:#fff}
+.portal-header .brand b{color:var(--samagam-deep)}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #e8b849;outline-offset:2px}
+@media(max-width:600px){
+ #dashboard .samagam-page .data-card{padding:14px}
+ #dashboard .samagam-page .exam-card{padding:14px}
+ #dashboard .cbt-head{flex-direction:column}
+ #dashboard .cbt-clock{width:100%;display:flex;justify-content:space-between;align-items:center}
+ #dashboard .cbt-question{min-height:180px;padding:17px 2px}
+ #dashboard .cbt-controls,#dashboard .cbt-bottom{gap:8px}
+ #dashboard .cbt-controls button,#dashboard .cbt-bottom button{min-height:44px}
+}

@@ -341,19 +341,31 @@ async function saveQuestionImport(){
 }
 
 async function assignExam(examId){
-  const candidateId=(prompt("Enter the student's seven-digit Candidate ID:")||"").trim();
-  if(!candidateId)return;
-  if(!/^\d{7}$/.test(candidateId))return toast("Enter the seven-digit Candidate ID.");
-  const {data:student,error:pe}=await db.from("profiles").select("id,full_name,candidate_id,candidate_level,role").eq("candidate_id",candidateId).maybeSingle();
-  if(pe||!student)return toast(pe?.message||"No student account found with that Candidate ID.");
-  if(student.role!=="student")return toast("That account is not a student account.");
-  const {data:exam,error:examError}=await db.from("exams").select("id,level").eq("id",examId).single();
+  const {data:exam,error:examError}=await db.from("exams").select("id,title,level").eq("id",examId).single();
   if(examError||!exam)return toast(examError?.message||"Examination not found.");
-  if(student.candidate_level!==exam.level)return toast("Progression mismatch: this candidate is registered for "+student.candidate_level+", not "+exam.level+".");
-  const {error}=await db.from("exam_assignments").insert({exam_id:examId,student_id:student.id});
-  if(error)return toast(error.code==="23505"?"This student is already assigned.":error.message);
-  toast("Examination assigned to "+student.full_name+" ("+student.candidate_id+").");
-  await renderDashboard();
+  let query=db.from("profiles").select("id,full_name,candidate_id,candidate_level,section").eq("role","student").eq("candidate_level",exam.level).order("full_name");
+  if(currentRole==="examiner"&&currentProfile.section)query=query.eq("section",currentProfile.section);
+  const [{data:candidates,error:pe},{data:assigned,error:ae}]=await Promise.all([
+    query.limit(500),
+    db.from("exam_assignments").select("student_id").eq("exam_id",examId)
+  ]);
+  if(pe||ae)return toast((pe||ae).message);
+  const already=new Set((assigned||[]).map(x=>x.student_id));
+  const eligible=(candidates||[]).filter(p=>!already.has(p.id));
+  if(!eligible.length)return toast("No unassigned candidates are available for this examination level.");
+  document.getElementById("assignment-modal")?.remove();
+  const modal=document.createElement("div");modal.id="assignment-modal";modal.className="portal-modal";
+  modal.innerHTML='<div class="portal-modal-card" role="dialog" aria-modal="true" aria-labelledby="assignment-title"><div class="portal-modal-head"><div><span class="eyebrow">CANDIDATE ASSIGNMENT</span><h2 id="assignment-title">Assign examination</h2><p class="muted tiny">'+esc(exam.title)+' · '+esc(exam.level)+'</p></div><button type="button" class="secondary" id="assignment-close" aria-label="Close">✕</button></div><form id="assignment-form"><label>Select candidate<select name="student_id" required><option value="">Choose a candidate</option>'+eligible.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.candidate_id||"No ID")+' — '+esc(p.full_name||"Candidate")+' ('+esc((p.section||"").toUpperCase())+')</option>').join("")+'</select></label><p class="muted tiny">'+eligible.length+' eligible candidate(s). Only candidates in the matching progression level'+(currentRole==="examiner"&&currentProfile.section?" and your assigned section":"")+' are shown. Already assigned candidates are hidden.</p><div class="action-row"><button type="button" class="secondary" id="assignment-cancel">Cancel</button><button type="submit" class="primary">Assign Candidate</button></div></form></div>';
+  document.body.appendChild(modal);
+  const close=()=>modal.remove();modal.addEventListener("click",e=>{if(e.target===modal)close()});
+  modal.querySelector("#assignment-close").addEventListener("click",close);modal.querySelector("#assignment-cancel").addEventListener("click",close);
+  modal.querySelector("#assignment-form").addEventListener("submit",async e=>{
+    e.preventDefault();const studentId=new FormData(e.currentTarget).get("student_id");const student=eligible.find(p=>p.id===studentId);if(!student)return toast("Select a valid candidate.");
+    const button=e.currentTarget.querySelector('button[type="submit"]');button.disabled=true;button.textContent="Assigning…";
+    const {error}=await db.from("exam_assignments").insert({exam_id:examId,student_id:student.id});
+    if(error){button.disabled=false;button.textContent="Assign Candidate";return toast(error.code==="23505"?"This student is already assigned.":error.message)}
+    close();toast("Assigned to "+student.full_name+" ("+student.candidate_id+").");await renderDashboard();
+  });
 }
 async function setExamStatus(examId,nextStatus){
   if(!["published","closed"].includes(nextStatus))return;

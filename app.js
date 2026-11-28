@@ -26,14 +26,15 @@ async function loadDashboard(){
 }
 async function renderDashboard(){const root=$("dash-content");root.innerHTML='<p class="muted">Loading workspace…</p>';if(currentRole==="admin")return adminDashboard(root);if(currentRole==="examiner")return examinerDashboard(root);return studentDashboard(root)}
 async function adminDashboard(root){
- const [{data:exams,error:examError},{count:examiners},{count:students},{count:submissions},{data:examinerProfiles,error:profileError}]=await Promise.all([
+ const [{data:exams,error:examError},{count:examiners},{count:students},{count:submissions},{data:examinerProfiles,error:profileError},{data:studentProfiles,error:studentError}]=await Promise.all([
   db.from("exams").select("*").order("created_at",{ascending:false}),
   db.from("profiles").select("*",{count:"exact",head:true}).eq("role","examiner"),
   db.from("profiles").select("*",{count:"exact",head:true}).eq("role","student"),
   db.from("submissions").select("*",{count:"exact",head:true}),
-  db.from("profiles").select("id,full_name,email,section,examiner_code,created_at").eq("role","examiner").order("created_at",{ascending:false})
+  db.from("profiles").select("id,full_name,email,section,examiner_code,created_at").eq("role","examiner").order("created_at",{ascending:false}),
+  db.from("profiles").select("id,full_name,candidate_id,scout_guide_number,section,candidate_level,created_at,account_locked").eq("role","student").order("created_at",{ascending:false})
  ]);
- if(examError||profileError){root.textContent=(examError||profileError).message;return}
+ if(examError||profileError||studentError){root.textContent=(examError||profileError||studentError).message;return}
  root.innerHTML=`<div class="stats"><div class="tile"><strong>${exams?.length||0}</strong><span>Examinations</span></div><div class="tile"><strong>${examiners||0}</strong><span>Examiner Profiles</span></div><div class="tile"><strong>${students||0}</strong><span>Registered Students</span></div><div class="tile"><strong>${submissions||0}</strong><span>Submitted Answer Sheets</span></div></div>
  <section class="data-card admin-examiner-profiles"><div class="card-kicker">STAFF MANAGEMENT · SUPER ADMIN</div><h3>Examiner Profiles</h3><p class="muted tiny">Create a separate login for each Scout or Guide examiner. The portal generates the Examiner Login ID automatically.</p>
  <form id="users-form" class="form-grid">
@@ -57,7 +58,7 @@ async function adminDashboard(root){
  </section><div class="notice">Super Admin manages examiner profiles and examination papers. Examiners use the same portal workspace to register students, create student IDs and manage assigned examinations.</div>`;
  $("users-form").addEventListener("submit",createUsers);
  $("create-exam").addEventListener("submit",createExam);
- buildAdminWorkspace(root);
+ buildAdminWorkspace(root,studentProfiles||[]);
 }
 async function createUsers(e){
  e.preventDefault();
@@ -75,25 +76,33 @@ async function createUsers(e){
  panel.innerHTML='<div class="created-head">✓ Examiner profile and login created</div><div class="credential-row"><span>Examiner</span><b>'+esc(user.full_name)+'</b></div><div class="credential-row"><span>Examiner Login ID</span><b>'+esc(result.examiner_id||"")+'</b></div><div class="credential-row"><span>Temporary Password</span><b>'+esc(user.password)+'</b></div><div class="credential-row"><span>Email</span><b>'+esc(user.email)+'</b></div><div class="credential-row"><span>Assigned Section</span><b>'+esc(user.section.toUpperCase())+'</b></div><p class="tiny muted">Share these login details securely with the examiner. The password is not displayed again after leaving this screen.</p>';
  form.reset();toast("Examiner profile created successfully. Login ID: "+(result.examiner_id||""));
 }
-function buildAdminWorkspace(root){
+function buildAdminWorkspace(root,studentProfiles=[]){
  const stats=root.querySelector(".stats");
  const profile=root.querySelector(".admin-examiner-profiles");
  const examControl=root.querySelector(".admin-exam-control");
  const examList=root.querySelector(".admin-exam-list");
  const notice=root.querySelector(".notice");
+ const studentRegister=document.createElement("section");
+ studentRegister.className="data-card admin-student-register";
+ studentRegister.innerHTML='<div class="card-kicker">STUDENT RECORDS · SUPER ADMIN</div><h3>Student Register</h3><p class="muted tiny">View and search registered student accounts. This page is read-only; account or profile changes are not made here.</p><label class="student-search-label">Search students<input id="admin-student-search" type="search" placeholder="Search by name, Student ID, Scout / Guide number or level"></label><div class="table-wrap"><table class="examiner-table"><thead><tr><th>Student</th><th>Student ID</th><th>Scout / Guide No.</th><th>Section</th><th>Level</th><th>Account</th><th>Registered</th></tr></thead><tbody id="admin-student-rows"></tbody></table></div><p id="admin-student-count" class="muted tiny"></p>';
+ const renderStudentRows=(term="")=>{const q=term.trim().toLowerCase();const rows=studentProfiles.filter(p=>[p.full_name,p.candidate_id,p.scout_guide_number,p.section,p.candidate_level].some(v=>String(v||"").toLowerCase().includes(q)));const body=studentRegister.querySelector("#admin-student-rows");body.innerHTML=rows.map(p=>'<tr><td>'+esc(p.full_name||"—")+'</td><td>'+esc(p.candidate_id||"—")+'</td><td>'+esc(p.scout_guide_number||"—")+'</td><td>'+esc((p.section||"—").toUpperCase())+'</td><td>'+esc(p.candidate_level||"—")+'</td><td><span class="status">'+(p.account_locked?"Locked":"Active")+'</span></td><td>'+esc(p.created_at?new Date(p.created_at).toLocaleDateString():"—")+'</td></tr>').join("")||'<tr><td colspan="7">No matching student records found.</td></tr>';studentRegister.querySelector("#admin-student-count").textContent="Showing "+rows.length+" of "+studentProfiles.length+" registered students.";};
+ renderStudentRows();
  const shell=document.createElement("div");shell.className="samagam-layout";
  const sidebar=document.createElement("aside");sidebar.className="samagam-sidebar";
  sidebar.innerHTML='<div class="samagam-side-brand"><span>⚜</span><div><b>STAFF WORKSPACE</b><small>Super Admin Control Desk</small></div></div><div class="samagam-nav-label">MAIN MENU</div>';
  const nav=document.createElement("nav");nav.className="samagam-nav";const pages=document.createElement("div");pages.className="samagam-pages";
  const add=(id,title,nodes)=>{const p=document.createElement("section");p.className="samagam-page";p.dataset.page=id;const h=document.createElement("div");h.className="samagam-page-heading";h.innerHTML='<span class="eyebrow">BHARAT SCOUTS &amp; GUIDES · CBT</span><h2>'+title+'</h2>';p.appendChild(h);nodes.filter(Boolean).forEach(n=>p.appendChild(n));pages.appendChild(p)};
- const items=[["overview","▦","Dashboard"],["examiners","♙","Examiner Profiles"],["exams","◷","Examination Management"],["reports","▤","Results & Exports"]];
+ const items=[["overview","▦","Dashboard"],["students","♙","Student Register"],["examiners","♙","Examiner Profiles"],["exams","◷","Examination Management"],["reports","▤","Results & Exports"],["lms","▣","LMS · Coming Soon"]];
  items.forEach(([id,ic,title])=>{const b=document.createElement("button");b.type="button";b.dataset.page=id;b.innerHTML='<span class="nav-icon">'+ic+'</span><span>'+title+'</span><span class="nav-chevron">›</span>';b.addEventListener("click",()=>{pages.querySelectorAll(".samagam-page").forEach(p=>p.classList.toggle("active",p.dataset.page===id));nav.querySelectorAll("button").forEach(x=>x.classList.toggle("active",x===b));applyPortalLanguage()});nav.appendChild(b)});
  sidebar.appendChild(nav);const foot=document.createElement("div");foot.className="samagam-side-foot";foot.textContent="Super Admin · Full administration access";sidebar.appendChild(foot);
  add("overview","Dashboard Overview",[stats,notice]);
+ add("students","Student Register",[studentRegister]);
  add("examiners","Examiner Profiles",[profile]);
+ const lmsNotice=document.createElement("section");lmsNotice.className="data-card lms-coming-soon";lmsNotice.innerHTML='<div class="card-kicker">FUTURE MODULE</div><h3>Learning Management System</h3><p class="muted">Coming in Future</p><p class="muted tiny">This section is reserved for learning materials, lessons, practice activities and learning progress. It is not active yet.</p>';
+ add("lms","Learning Management System",[lmsNotice]);
  add("exams","Examination Management",[examControl,examList]);
  add("reports","Results & Exports",[examList.cloneNode(true)]);
- shell.appendChild(sidebar);shell.appendChild(pages);root.replaceChildren(shell);const first=nav.querySelector("button");if(first)first.click();
+ shell.appendChild(sidebar);shell.appendChild(pages);root.replaceChildren(shell);const search=studentRegister.querySelector("#admin-student-search");search.addEventListener("input",()=>renderStudentRows(search.value));const first=nav.querySelector("button");if(first)first.click();
 }
 function resultCategory(marks,totalMarks=100){const pct=Number(totalMarks)>0?(Number(marks)||0)/Number(totalMarks)*100:0;return pct>=90?'First Class':pct>=70?'Second Class':pct>=50?'Third Class':'Fail'}
 async function studentDashboard(root){

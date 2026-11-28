@@ -294,3 +294,6 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
  #dashboard .cbt-controls,#dashboard .cbt-bottom{gap:8px}
  #dashboard .cbt-controls button,#dashboard .cbt-bottom button{min-height:44px}
 }
+
+/* Super Admin Student Register and future LMS module */
+.admin-student-register h3,.lms-coming-soon h3{color:var(--navy);margin:8px 0}.student-search-label{display:block;color:#344b64;font-size:12px;font-weight:800;margin:16px 0}.student-search-label input{display:block;width:100%;max-width:520px;height:43px;margin-top:7px;padding:0 13px;border:1px solid #cbd6e2;border-radius:9px;font:inherit}.admin-student-register .table-wrap{margin-top:12px}.admin-student-register .examiner-table th,.admin-student-register .examiner-table td{white-space:nowrap}.lms-coming-soon{background:linear-gradient(135deg,#fff,#f4f8fc);border-style:dashed}
